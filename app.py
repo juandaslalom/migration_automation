@@ -1,5 +1,10 @@
 import streamlit as st
-from datetime import datetime
+
+from tabs.tab1 import render_tab1
+from tabs.tab2 import render_tab2
+from tabs.tab3 import render_tab3
+from tabs.tab4 import render_tab4
+from tabs.tab5 import render_tab5
 
 # Page configuration
 st.set_page_config(
@@ -20,12 +25,6 @@ st.markdown("""
         border: 3px solid #000;
         border-radius: 10px;
     }
-    .section-box {
-        border: 2px solid #000;
-        border-radius: 10px;
-        padding: 2rem;
-        margin: 1rem 0;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -33,89 +32,19 @@ st.markdown("""
 st.markdown('<div class="main-title">MIGRATION AUTOMATION</div>', unsafe_allow_html=True)
 
 # Create tabs for Setup Steps
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["TAB 1", "TAB 2", "TAB 3", "TAB 4", "TAB 5"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "TAB 4", "TAB 5"])
 
 with tab1:
-    st.markdown('<div class="section-box">', unsafe_allow_html=True)
-    
-    # Input fields
-    st.subheader("Setup Information")
-    
-    site_name = st.text_input(
-        "Enter the site name",
-        placeholder="<Site Name>",
-        key="site_name"
-    )
-    
-    release_name = st.text_input(
-        "Enter the release name",
-        placeholder="<Release Name>",
-        key="release_name"
-    )
-    
-    migration_folder = st.text_input(
-        "Enter the name of the migration folder",
-        placeholder="<Migration Folder>",
-        key="migration_folder"
-    )
-    
-    migration_folder_path = st.text_input(
-        "Enter the name of the migration folder path",
-        value="E:\\Applied Materials\\SmartFactory/Rx_Westport\\Migration\\Westport_Eyecore-UPV8_Q4toProd_{YYYYMMDD}",
-        key="migration_folder_path"
-    )
-    
-    st.markdown("---")
-    
-    # File upload sections
-    st.subheader("File Uploads")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        excel_file = st.file_uploader(
-            "Upload your excel file",
-            type=['xlsx', 'xls'],
-            key="excel_file"
-        )
-        if excel_file:
-            st.success(f"✓ {excel_file.name} uploaded successfully")
-    
-    with col2:
-        equipments_file = st.file_uploader(
-            "Upload your equipments file",
-            type=['xlsx', 'xls', 'csv'],
-            key="equipments_file"
-        )
-        if equipments_file:
-            st.success(f"✓ {equipments_file.name} uploaded successfully")
-    
-    st.markdown("---")
-    
-    # Information message
-    st.info("""
-    **Note:** Provide evidence of the Strategy validation/approval included in the Release 
-    Migration via an email screen capture.
-    """)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    render_tab1()
 
 with tab2:
-    st.markdown('<div class="section-box">', unsafe_allow_html=True)
-    st.write("Content for TAB 2")
-    st.markdown('</div>', unsafe_allow_html=True)
+    render_tab2()
 
 with tab3:
-    st.markdown('<div class="section-box">', unsafe_allow_html=True)
-    st.write("Content for TAB 3")
-    st.markdown('</div>', unsafe_allow_html=True)
+    render_tab3()
 
 with tab4:
-    st.markdown('<div class="section-box">', unsafe_allow_html=True)
-    st.write("Content for TAB 4")
-    st.markdown('</div>', unsafe_allow_html=True)
+    render_tab4()
 
 with tab5:
-    st.markdown('<div class="section-box">', unsafe_allow_html=True)
-    st.write("Content for TAB 5")
-    st.markdown('</div>', unsafe_allow_html=True)
+    render_tab5()
