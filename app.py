@@ -32,7 +32,7 @@ st.markdown("""
 st.markdown('<div class="main-title">MIGRATION AUTOMATION</div>', unsafe_allow_html=True)
 
 # Create tabs for Setup Steps
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "TAB 4", "TAB 5"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "Folder Migration", "TAB 5"])
 
 with tab1:
     render_tab1()
