@@ -58,3 +58,4 @@ venv.bak/
 
 # OS
 Thumbs.db
+dev_session_state.json

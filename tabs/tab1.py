@@ -13,22 +13,18 @@ def render_tab1() -> None:
         key="site_name"
     )
 
+    st.selectbox(
+        "Select the base drive",
+        options=["C:", "D:", "E:"],
+        key="base_drive",
+        help="The drive where Applied Materials folder is located"
+    )
+
     st.text_input(
-        "Enter the release name",
+        "Enter the release name (this will be the migration folder name)",
         placeholder="<Release Name>",
-        key="release_name"
-    )
-
-    st.text_input(
-        "Enter the name of the migration folder",
-        placeholder="<Migration Folder>",
-        key="migration_folder"
-    )
-
-    st.text_input(
-        "Enter the name of the migration folder path",
-        placeholder="E.g., /path/to/migration/folder or C:\\path\\to\\migration\\folder",
-        key="migration_folder_path"
+        key="release_name",
+        help=r"Example: E:\Applied Materials\SmartFactoryRx_Westport\Migration\<Release Name>"
     )
 
     st.markdown("---")
@@ -48,17 +44,36 @@ def render_tab1() -> None:
             st.success(f"✓ {excel_file.name} uploaded successfully")
 
     with col2:
-        equipments_file = st.file_uploader(
-            "Upload your equipments file",
-            type="txt",
-            key="equipments_file"
+        # Option to choose between file upload or text input
+        input_method = st.radio(
+            "Choose equipment input method:",
+            ["Upload File", "Enter Text"],
+            key="equipment_input_method",
+            horizontal=True
         )
-        if equipments_file:
-            st.success(f"✓ {equipments_file.name} uploaded successfully")
         
-        # Show example format
-        with st.expander("📄 Equipment file format example\n\nEach equipment on a new line:"):
-            st.text("UPV8\nUPV9")
+        if input_method == "Upload File":
+            equipments_file = st.file_uploader(
+                "Upload your equipments file",
+                type="txt",
+                key="equipments_file"
+            )
+            if equipments_file:
+                st.success(f"✓ {equipments_file.name} uploaded successfully")
+            
+            # Show example format
+            with st.expander("📄 Equipment file format example"):
+                st.text("Each equipment on a new line:\nUPV8\nUPV9")
+        else:
+            st.text_area(
+                "Enter equipment names (one per line)",
+                placeholder="UPV8\nUPV9\nUPV10",
+                key="equipments_text",
+                height=150
+            )
+            if st.session_state.get("equipments_text"):
+                equipment_count = len([e.strip() for e in st.session_state.equipments_text.split('\n') if e.strip()])
+                st.success(f"✓ {equipment_count} equipment(s) entered")
 
     st.markdown("---")
 
@@ -66,26 +81,42 @@ def render_tab1() -> None:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("📁 Create Migration Folder and Save Excel File", type="primary", use_container_width=True):
-            migration_path = st.session_state.get("migration_folder_path", "")
+            base_drive = st.session_state.get("base_drive", "").strip()
+            release_name = st.session_state.get("release_name", "").strip()
             excel_file = st.session_state.get("excel_file")
             
-            if not migration_path:
-                st.error("Please enter the migration folder path")
+            if not base_drive:
+                st.error("Please enter the base drive")
+            elif not release_name:
+                st.error("Please enter the release name")
             elif not excel_file:
                 st.error("Please upload an excel file first")
             else:
                 try:
+                    # Build the migration path - ensure backslash after drive letter
+                    base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
+                    migration_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
+                    
+                    # Show the path that will be created
+                    st.info(f"Creating folder at: {migration_path}")
+                    
                     # Create the directory
                     Path(migration_path).mkdir(parents=True, exist_ok=True)
+                    
+                    # Verify the folder was created
+                    if os.path.exists(migration_path):
+                        st.success(f"✅ Folder created successfully at:\n{migration_path}")
                     
                     # Save the excel file
                     excel_path = os.path.join(migration_path, excel_file.name)
                     with open(excel_path, "wb") as f:
                         f.write(excel_file.getbuffer())
                     
-                    st.success(f"✅ Folder created and file saved successfully!\n\nPath: {excel_path}")
+                    if os.path.exists(excel_path):
+                        st.success(f"✅ Excel file saved successfully at:\n{excel_path}")
+                    
                 except Exception as e:
-                    st.error(f"Error: {str(e)}")
+                    st.error(f"❌ Error: {str(e)}")
 
     st.markdown("---")
 

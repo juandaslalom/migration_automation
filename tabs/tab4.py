@@ -21,38 +21,28 @@ def render_tab4() -> None:
     
     st.markdown("---")
     
-    st.markdown("Insert the path of the backup folder")
-    
-    # Text input for backup folder path
-    backup_folder_path = st.text_input(
-        "Paths of the backup folder",
-        key="backup_folder_path",
-        placeholder="E.g., /path/to/backup or C:\\path\\to\\backup"
-    )
-    
-    st.markdown("---")
-    
-    # Copy folders and backup button (centered)
+    # Copy folders button (centered)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("📋 Copy Folders and Backup", type="primary", use_container_width=True):
+        if st.button("📋 Copy Folders to Migration", type="primary", use_container_width=True):
             folders = st.session_state.get("folders_to_migrate", "")
-            backup_path = st.session_state.get("backup_folder_path", "")
-            migration_path = st.session_state.get("migration_folder_path", "")
+            base_drive = st.session_state.get("base_drive", "").strip()
+            release_name = st.session_state.get("release_name", "").strip()
             
             if not folders:
                 st.error("Please enter the paths of folders to migrate")
-            elif not backup_path:
-                st.error("Please enter the backup folder path")
-            elif not migration_path:
-                st.error("Please enter the migration folder path in Setup Steps (Tab 1)")
+            elif not base_drive or not release_name:
+                st.error("Please complete the setup information in Tab 1 (base drive and release name)")
             else:
+                # Build the migration path
+                base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
+                migration_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
                 try:
                     # Parse folder paths (one per line)
                     folder_list = [line.strip() for line in folders.split('\n') if line.strip()]
                     
-                    # Create backup folder if it doesn't exist
-                    Path(backup_path).mkdir(parents=True, exist_ok=True)
+                    # Strip quotes from paths
+                    migration_path = migration_path.strip().strip('"').strip("'")
                     
                     # Create migration folder if it doesn't exist
                     Path(migration_path).mkdir(parents=True, exist_ok=True)
@@ -60,41 +50,67 @@ def render_tab4() -> None:
                     results = []
                     errors = []
                     
+                    # Create txt file with the paths in migration folder
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    txt_filename = f"migrated_paths_{timestamp}.txt"
+                    txt_filepath = os.path.join(migration_path, txt_filename)
+                    
+                    with open(txt_filepath, 'w', encoding='utf-8') as f:
+                        for path in folder_list:
+                            f.write(f"{path}\n")
+                    
                     for folder_path in folder_list:
                         try:
-                            # Convert Windows absolute path to relative path if needed
-                            original_path = folder_path
-                            if folder_path.startswith('C:\\') or folder_path.startswith('c:\\'):
-                                # Convert to relative path from workspace
-                                folder_path = os.path.join(os.getcwd(), folder_path)
+                            original_path = folder_path.strip().strip('"').strip("'")
                             
                             # Check if path exists
-                            if not os.path.exists(folder_path):
+                            if not os.path.exists(original_path):
                                 raise FileNotFoundError(f"Path does not exist: {original_path}")
                             
-                            folder_name = os.path.basename(folder_path.rstrip('/\\'))
+                            # Extract relative path structure
+                            # Look for common base patterns like "SmartFactoryRx_" to preserve structure
+                            if "SmartFactoryRx_" in original_path or "SmartFactory" in original_path:
+                                # Find the part after SmartFactoryRx_SITE
+                                parts = original_path.split(os.sep)
+                                # Find index of folder containing "SmartFactoryRx"
+                                sfrx_index = -1
+                                for i, part in enumerate(parts):
+                                    if "SmartFactoryRx" in part or "SmartFactory" in part:
+                                        sfrx_index = i
+                                        break
+                                
+                                if sfrx_index >= 0 and sfrx_index + 1 < len(parts):
+                                    # Get relative path from after SmartFactoryRx_SITE folder
+                                    relative_path = os.sep.join(parts[sfrx_index + 1:])
+                                else:
+                                    # Fallback: just use basename
+                                    relative_path = os.path.basename(original_path.rstrip('/\\'))
+                            else:
+                                # For paths not containing SmartFactoryRx, just use basename
+                                relative_path = os.path.basename(original_path.rstrip('/\\'))
+                            
+                            # Create destination with preserved structure
+                            migration_dest = os.path.join(migration_path, relative_path)
+                            
+                            # Create parent directories if needed
+                            os.makedirs(os.path.dirname(migration_dest), exist_ok=True)
                             
                             # Copy to migration folder
-                            migration_dest = os.path.join(migration_path, folder_name)
-                            if os.path.isdir(folder_path):
-                                shutil.copytree(folder_path, migration_dest, dirs_exist_ok=True)
+                            if os.path.isdir(original_path):
+                                if os.path.exists(migration_dest):
+                                    shutil.rmtree(migration_dest)
+                                shutil.copytree(original_path, migration_dest)
                             else:
-                                shutil.copy2(folder_path, migration_dest)
+                                shutil.copy2(original_path, migration_dest)
                             
-                            # Copy to backup folder
-                            backup_dest = os.path.join(backup_path, folder_name)
-                            if os.path.isdir(folder_path):
-                                shutil.copytree(folder_path, backup_dest, dirs_exist_ok=True)
-                            else:
-                                shutil.copy2(folder_path, backup_dest)
-                            
-                            results.append(f"✓ {folder_name}")
+                            results.append(f"✓ {relative_path}")
                         except Exception as e:
-                            errors.append(f"✗ {folder_path}: {str(e)}")
+                            errors.append(f"✗ {original_path}: {str(e)}")
                     
                     # Display results
                     if results:
-                        st.success("✅ Migration and backup completed!\n\n" + "\n".join(results))
+                        st.success(f"✅ Migration completed!\n\nPaths saved to: {txt_filename}\n\n" + "\n".join(results))
                     if errors:
                         st.error("⚠️ Some items failed:\n\n" + "\n".join(errors))
                         

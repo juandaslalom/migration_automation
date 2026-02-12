@@ -1,10 +1,47 @@
 import streamlit as st
+import json
+import os
 
 from tabs.tab1 import render_tab1
 from tabs.tab2 import render_tab2
 from tabs.tab3 import render_tab3
 from tabs.tab4 import render_tab4
 from tabs.tab5 import render_tab5
+from tabs.tab6 import render_tab6
+from tabs.tab7 import render_tab7
+
+# Development mode settings file
+DEV_SETTINGS_FILE = "dev_session_state.json"
+
+def save_session_state():
+    """Save current session state to file for development"""
+    state_to_save = {}
+    for key in st.session_state:
+        # Only save simple types (strings, numbers, booleans)
+        value = st.session_state[key]
+        if isinstance(value, (str, int, float, bool)):
+            state_to_save[key] = value
+    
+    with open(DEV_SETTINGS_FILE, 'w') as f:
+        json.dump(state_to_save, f, indent=2)
+    return True
+
+def load_session_state():
+    """Load session state from file for development"""
+    if os.path.exists(DEV_SETTINGS_FILE):
+        with open(DEV_SETTINGS_FILE, 'r') as f:
+            saved_state = json.load(f)
+        
+        for key, value in saved_state.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
+        return True
+    return False
+
+# Auto-load session state on startup
+if 'dev_state_loaded' not in st.session_state:
+    load_session_state()
+    st.session_state['dev_state_loaded'] = True
 
 # Page configuration
 st.set_page_config(
@@ -31,8 +68,29 @@ st.markdown("""
 # Main title
 st.markdown('<div class="main-title">MIGRATION AUTOMATION</div>', unsafe_allow_html=True)
 
+# Development tools (in sidebar)
+with st.sidebar:
+    st.markdown("### 🛠️ Dev Tools")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("💾 Save State", use_container_width=True):
+            if save_session_state():
+                st.success("Saved!")
+    with col2:
+        if st.button("📂 Load State", use_container_width=True):
+            if load_session_state():
+                st.success("Loaded!")
+                st.rerun()
+            else:
+                st.warning("No saved state found")
+    
+    if os.path.exists(DEV_SETTINGS_FILE):
+        st.caption(f"✓ State file exists")
+    
+    st.markdown("---")
+
 # Create tabs for Setup Steps
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "Folder Migration", "TAB 5"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "Folder Migration", "Import Files", "E3 Import", "CLI Import"])
 
 with tab1:
     render_tab1()
@@ -48,3 +106,9 @@ with tab4:
 
 with tab5:
     render_tab5()
+
+with tab6:
+    render_tab6()
+
+with tab7:
+    render_tab7()

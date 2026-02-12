@@ -33,17 +33,19 @@ def render_tab2() -> None:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("💾 Save File to Migration Folder", type="primary", use_container_width=True):
-            migration_path = st.session_state.get("migration_folder_path", "")
+            base_drive = st.session_state.get("base_drive", "").strip()
+            release_name = st.session_state.get("release_name", "").strip()
             e3pkg_file_from_state = st.session_state.get("e3pkg_file")
             
-            if not migration_path:
-                st.error("Please enter the migration folder path in Setup Steps (Tab 1)")
+            if not base_drive or not release_name:
+                st.error("Please complete the setup information in Tab 1 (base drive and release name)")
             elif not e3pkg_file_from_state:
                 st.error("Please upload an e3pkg file first")
             else:
                 try:
-                    # Normalize the path for the current OS
-                    migration_path = os.path.normpath(migration_path)
+                    # Build the migration path - ensure backslash after drive letter
+                    base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
+                    migration_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
                     
                     # Create the directory if it doesn't exist
                     Path(migration_path).mkdir(parents=True, exist_ok=True)
