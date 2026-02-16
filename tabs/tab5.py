@@ -21,9 +21,9 @@ def render_tab5() -> None:
     # Path of the lower server
     st.markdown("**Path of the lower server**")
     lower_server_path = st.text_input(
-        "Path of the lower server",
+        "Path of the lower server (where the migration folder is currently located)",
         key="lower_server_path",
-        placeholder=r"\\wa01928q\e$...",
+        placeholder=r"\\wa01928q\e$\Applied Materials\SmartFactoryRx_WESTPORT\Migration\<Release Name>",
         label_visibility="collapsed"
     )
     
@@ -31,12 +31,32 @@ def render_tab5() -> None:
     
     # Path of the env server
     st.markdown("**Path of the env server**")
-    env_server_path = st.text_input(
-        "Path of the env server",
-        key="env_server_path",
-        placeholder=r"E:\Applied Materials\SmartFactoryRx_WESTPORT\Migration",
-        label_visibility="collapsed"
-    )
+    
+    # Get site name from session state to build default path
+    site_name = st.session_state.get("site_name", "WESTPORT")
+    base_drive = st.session_state.get("base_drive", "E:")
+    default_env_path = f"{base_drive}\\Applied Materials\\SmartFactoryRx_{site_name}-env"
+    
+    st.info(f"📍 Migration folder will be copied to:\n\n`{default_env_path}\\Migration`")
+    
+    # Option to use custom path
+    use_custom = st.checkbox("Use custom env server path", key="use_custom_env_path")
+    
+    if use_custom:
+        custom_env_path = st.text_input(
+            "Custom env server path",
+            key="custom_env_server_path",
+            placeholder=r"E:\Applied Materials\SmartFactoryRx_WESTPORT-env",
+            label_visibility="collapsed"
+        )
+        # Store the custom path in session state
+        if custom_env_path:
+            st.session_state["env_server_path"] = custom_env_path
+        else:
+            st.session_state["env_server_path"] = default_env_path
+    else:
+        # Use default path
+        st.session_state["env_server_path"] = default_env_path
     
     st.markdown("---")
     
@@ -81,10 +101,13 @@ def render_tab5() -> None:
     
     st.markdown("---")
     
+    # Check if import has been done
+    import_done = "imported_migration_path" in st.session_state and st.session_state.get("imported_migration_path")
+    
     # Check for data to backup button
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("🔍 Check for data to backup", use_container_width=True):
+        if st.button("🔍 Check for data to backup", use_container_width=True, disabled=not import_done):
             env_path = st.session_state.get("env_server_path", "").strip().strip('"').strip("'")
             migration_path = st.session_state.get("imported_migration_path", "")
             
@@ -178,7 +201,7 @@ def render_tab5() -> None:
     # Create backups button
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("💾 Create backups", use_container_width=True):
+        if st.button("💾 Create backups", use_container_width=True, disabled=not import_done):
             directories_needing_backup = st.session_state.get("directories_needing_backup", [])
             env_base_path = st.session_state.get("env_base_path", "")
             migration_path = st.session_state.get("imported_migration_path", "")
@@ -213,7 +236,7 @@ def render_tab5() -> None:
                                     
                                     # Rename to backup
                                     os.rename(target_path, backup_path)
-                                    backup_results.append(f"{rel_path} → {os.path.basename(backup_path)}")
+                                    backup_results.append(f"{rel_path} → {backup_path}")
                                     
                                 except Exception as e:
                                     errors.append(f"{rel_path}: {str(e)}")
@@ -234,7 +257,7 @@ def render_tab5() -> None:
     # Transfer directories button
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("📦 Transfer directories", use_container_width=True):
+        if st.button("📦 Transfer directories", use_container_width=True, disabled=not import_done):
             migration_path = st.session_state.get("imported_migration_path", "")
             env_base_path = st.session_state.get("env_base_path", "")
             txt_paths = st.session_state.get("txt_paths", [])
@@ -304,7 +327,7 @@ def render_tab5() -> None:
                             else:
                                 shutil.copy2(source_path, target_path)
                             
-                            transferred.append(f"{rel_path}")
+                            transferred.append(f"{source_path} → {target_path}")
                             
                         except Exception as e:
                             errors.append(f"{original_path}: {str(e)}")
