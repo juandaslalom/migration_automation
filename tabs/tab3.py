@@ -44,6 +44,7 @@ def render_tab3() -> None:
             "Generated Commands:",
             value=st.session_state['cli_commands'],
             height=300,
+            disabled=True,
             key="cli_commands_display"
         )
         
@@ -88,11 +89,22 @@ def render_tab3() -> None:
                 except Exception as e:
                     st.error(f"Error running commands: {str(e)}")
     
-    # Instructions
-    st.markdown("""
+    # Instructions - show dynamic path
+    site_name = st.session_state.get("site_name", "")
+    base_drive = st.session_state.get("base_drive", "E:")
+    
+    if site_name:
+        cli_path = f"{base_drive}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
+    else:
+        cli_path = f"{base_drive}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
+    
+    st.markdown(f"""
     ### Instructions:
-    1. Navigate to `E:\\Applied Materials\\SmartFactory\\Rx_<Site>\\CLI\\bin` and open a CMD window.
-    2. Click the **Generate commands** button and run each of them in the CMD run them one by one.
+    The commands will be automatically executed in the correct CLI directory (`{cli_path}`).
+    
+    1. Click **Generate Commands** to create the CLI export commands
+    2. Review the generated commands
+    3. Click **▶️ Run CLI Commands** to execute them automatically
     """)
 
 
@@ -232,21 +244,40 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
         
         else:
             # REAL CLI execution
+            # Build CLI bin directory path
+            base_path = st.session_state.get("base_drive", "E:") + "\\"
+            cli_bin_path = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
+            
+            # Check if CLI directory exists
+            if not os.path.exists(cli_bin_path):
+                error_msg = f"CLI directory not found: {cli_bin_path}"
+                log_lines.append(f"\nERROR: {error_msg}")
+                with open(log_file_path, 'w', encoding='utf-8') as log_file:
+                    log_file.write('\n'.join(log_lines))
+                return {
+                    "success": False,
+                    "output": "",
+                    "error": error_msg,
+                    "log_file": log_file_path
+                }
+            
             cli_command = f'sfrxcli -i --env {site_name}'
             
-            log_lines.append(f"\nExecuting command: {cli_command}\n")
+            log_lines.append(f"\nWorking directory: {cli_bin_path}")
+            log_lines.append(f"Executing command: {cli_command}\n")
             log_lines.append(f"Commands to execute:\n{commands_input}\n")
             log_lines.append(f"=" * 50)
             log_lines.append(f"\nOutput:\n")
             
-            # Run the command with stdin piping
+            # Run the command with stdin piping from the CLI bin directory
             process = subprocess.Popen(
                 cli_command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                shell=True
+                shell=True,
+                cwd=cli_bin_path  # Set working directory to CLI bin
             )
             
             # Send commands to stdin
