@@ -1,57 +1,45 @@
 import streamlit as st
 import os
 import subprocess
-import time
 from datetime import datetime
 
 
-def render_tab7() -> None:
-    st.subheader("Portal Dashboard Migration – CLI Import")
+def render_tab8() -> None:
+    st.subheader("Dashboard CLI Import")
     
     # Generate Commands button
-    if st.button("Generate Commands", key="generate_cli_import_commands"):
+    if st.button("Generate Commands", key="generate_dashboard_cli_commands"):
         # Get data from session state
         site_name = st.session_state.get("site_name", "")
-        release_name = st.session_state.get("release_name", "")
         base_drive = st.session_state.get("base_drive", "").strip()
-        equipments_file = st.session_state.get("equipments_file")
-        equipments_text = st.session_state.get("equipments_text", "")
         
         # Validate inputs
         if not site_name:
             st.error("Please enter the site name in Setup Steps (Tab 1)")
-        elif not release_name:
-            st.error("Please enter the release name in Setup Steps (Tab 1)")
         elif not base_drive:
             st.error("Please select the base drive in Setup Steps (Tab 1)")
-        elif not equipments_file and not equipments_text:
-            st.error("Please upload the equipments file or enter equipment names in Setup Steps (Tab 1)")
         else:
             try:
-                # Build the migration path
-                base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
-                migration_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
-                
                 # Generate commands logic here
-                commands = generate_cli_import_commands(site_name, release_name, migration_folder_path, equipments_file, equipments_text)
-                st.session_state['cli_import_commands'] = commands
+                commands = generate_dashboard_cli_commands(site_name, base_drive)
+                st.session_state['dashboard_cli_commands'] = commands
             except Exception as e:
                 st.error(f"Error generating commands: {str(e)}")
     
     # Display commands text box
-    if 'cli_import_commands' in st.session_state and st.session_state['cli_import_commands']:
+    if 'dashboard_cli_commands' in st.session_state and st.session_state['dashboard_cli_commands']:
         st.text_area(
             "Generated Commands:",
-            value=st.session_state['cli_import_commands'],
+            value=st.session_state['dashboard_cli_commands'],
             height=300,
             disabled=True,
-            key="cli_import_commands_display"
+            key="dashboard_cli_commands_display"
         )
         
         st.markdown("---")
         
         # Test mode checkbox
-        test_mode = st.checkbox("🧪 Test Mode (simulate CLI execution without sfrxcli)", value=False, key="cli_import_test_mode")
+        test_mode = st.checkbox("🧪 Test Mode (simulate CLI execution without sfrxcli)", value=False, key="dashboard_cli_test_mode")
         
         if test_mode:
             st.info("ℹ️ Test mode enabled - will simulate CLI execution for testing purposes")
@@ -62,40 +50,37 @@ def render_tab7() -> None:
             
             col_user, col_pass = st.columns(2)
             with col_user:
-                cli_username = st.text_input("Username", key="cli_import_username", autocomplete="off")
+                cli_username = st.text_input("Username", key="dashboard_cli_username", autocomplete="off")
             with col_pass:
-                cli_password = st.text_input("Password", type="password", key="cli_import_password", autocomplete="off")
+                cli_password = st.text_input("Password", type="password", key="dashboard_cli_password", autocomplete="off")
         
-        # Run CLI Import Commands button (centered)
+        # Run Dashboard CLI Commands button (centered)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("▶️ Run CLI Import Commands", type="primary", use_container_width=True):
+            if st.button("▶️ Run Dashboard CLI Commands", type="primary", use_container_width=True):
                 try:
                     site_name = st.session_state.get("site_name", "")
-                    release_name = st.session_state.get("release_name", "")
                     base_drive = st.session_state.get("base_drive", "").strip()
-                    equipments_file = st.session_state.get("equipments_file")
-                    equipments_text = st.session_state.get("equipments_text", "")
-                    test_mode = st.session_state.get("cli_import_test_mode", False)
+                    test_mode = st.session_state.get("dashboard_cli_test_mode", False)
                     
                     # Get credentials (only in production mode)
                     cli_username = None
                     cli_password = None
                     if not test_mode:
-                        cli_username = st.session_state.get("cli_import_username", "")
-                        cli_password = st.session_state.get("cli_import_password", "")
+                        cli_username = st.session_state.get("dashboard_cli_username", "")
+                        cli_password = st.session_state.get("dashboard_cli_password", "")
                         
                         if not cli_username or not cli_password:
                             st.error("⚠️ Please enter both username and password")
                             st.stop()
                     
-                    # Build the migration path
+                    # Build the migration path for log file
                     base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
-                    migration_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
+                    log_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Portal", "data", "static")
                     
                     # Run the commands
-                    with st.spinner("Running CLI import commands..." if not test_mode else "Simulating CLI import commands..."):
-                        result = run_cli_import_commands(site_name, release_name, migration_folder_path, equipments_file, equipments_text, test_mode, cli_username, cli_password)
+                    with st.spinner("Running Dashboard CLI commands..." if not test_mode else "Simulating Dashboard CLI commands..."):
+                        result = run_dashboard_cli_commands(site_name, base_drive, log_folder_path, test_mode, cli_username, cli_password)
                     
                     if result["success"]:
                         st.success(f"✅ Commands executed successfully!\n\nLog file: {result['log_file']}")
@@ -123,25 +108,24 @@ def render_tab7() -> None:
     ### Instructions:
     The commands will be automatically executed in the correct CLI directory (`{cli_path}`).
     
-    1. Click **Generate Commands** to create the CLI import commands
+    1. Click **Generate Commands** to create the Dashboard CLI import commands
     2. Review the generated commands
-    3. Click **▶️ Run CLI Import Commands** to execute them automatically
+    3. Click **▶️ Run Dashboard CLI Commands** to execute them automatically
+    
+    **Commands will import:**
+    - Process Map domain settings
+    - Equipment Health domain settings
+    - Equipment View domain settings
+    - Operation domain settings
     """)
 
 
-def generate_cli_import_commands(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str) -> str:
-    """Generate CLI import commands for each equipment"""
+def generate_dashboard_cli_commands(site_name: str, base_drive: str) -> str:
+    """Generate Dashboard CLI import commands"""
     
-    # Get equipments list
-    equipments = []
-    
-    if equipments_file:
-        # Read from uploaded file
-        content = equipments_file.getvalue().decode("utf-8")
-        equipments = [line.strip() for line in content.splitlines() if line.strip()]
-    elif equipments_text:
-        # Read from text input
-        equipments = [line.strip() for line in equipments_text.splitlines() if line.strip()]
+    # Build the static file directory path
+    base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
+    static_directory = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Portal", "data", "static")
     
     # Build commands
     commands_list = []
@@ -150,17 +134,12 @@ def generate_cli_import_commands(site_name: str, release_name: str, migration_fo
     commands_list.append(f"sfrxcli -i --env {site_name}")
     commands_list.append("")  # Empty line for readability
     
-    # Generate commands for each equipment
-    for equipment in equipments:
-        # ie command for JSON file
-        json_file = os.path.join(migration_folder_path, f"{release_name}-{equipment}.json")
-        commands_list.append(f'ie -if "{json_file}" --comment "{release_name}"')
-        
-        # is command for CSV file
-        csv_file = os.path.join(migration_folder_path, f"{release_name}-{equipment}.csv")
-        commands_list.append(f'is -if "{csv_file}" --comment "{release_name}"')
-        
-        commands_list.append("")  # Empty line between equipment sets
+    # Domain settings import commands
+    setting_types = ["ProcessMap", "EquipmentHealth", "EquipmentView", "Operation"]
+    
+    for setting_type in setting_types:
+        commands_list.append(f'ds --import --setting-type {setting_type} --static-file-directory "{static_directory}"')
+        commands_list.append("")  # Empty line between commands
     
     # Add exit command at the end
     commands_list.append("exit")
@@ -168,25 +147,24 @@ def generate_cli_import_commands(site_name: str, release_name: str, migration_fo
     return '\n'.join(commands_list)
 
 
-def run_cli_import_commands(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str, test_mode: bool = False, username: str = None, password: str = None) -> dict:
-    """Run the CLI import commands"""
+def run_dashboard_cli_commands(site_name: str, base_drive: str, log_folder_path: str, test_mode: bool = False, username: str = None, password: str = None) -> dict:
+    """Run the Dashboard CLI import commands"""
     
     try:
         # Create log file path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file_path = os.path.join(migration_folder_path, f"{release_name}_cli_import_log_{timestamp}.log")
+        log_file_path = os.path.join(log_folder_path, f"dashboard_cli_import_log_{timestamp}.log")
         
         # Generate commands input (without the initial sfrxcli command)
-        commands = generate_cli_import_commands(site_name, release_name, migration_folder_path, equipments_file, equipments_text)
+        commands = generate_dashboard_cli_commands(site_name, base_drive)
         # Remove the first line (sfrxcli -i --env) as we'll execute it separately
         commands_input = '\n'.join(commands.split('\n')[2:])  # Skip first line and empty line
         
         # Prepare log content
         log_lines = []
-        log_lines.append(f"=== CLI Import Commands Execution Log ===")
+        log_lines.append(f"=== Dashboard CLI Import Commands Execution Log ===")
         log_lines.append(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         log_lines.append(f"Site: {site_name}")
-        log_lines.append(f"Release: {release_name}")
         log_lines.append(f"Mode: {'TEST (Simulated)' if test_mode else 'PRODUCTION'}")
         log_lines.append(f"=" * 50)
         
@@ -204,19 +182,16 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
             simulated_output.append(f"Connected successfully to {site_name}")
             simulated_output.append(f"")
             
-            # Read equipments from commands
-            import re
-            json_pattern = r'ie -if ".*?-(.*?)\.json"'
-            equipments = re.findall(json_pattern, commands_input)
+            setting_types = ["ProcessMap", "EquipmentHealth", "EquipmentView", "Operation"]
             
-            for equipment in equipments:
-                simulated_output.append(f"Processing equipment: {equipment}")
-                time.sleep(0.1)  # Small delay for realism
-                simulated_output.append(f"  ✓ Importing equipment configuration from JSON... Done")
-                simulated_output.append(f"  ✓ Importing equipment specs from CSV... Done")
+            for setting_type in setting_types:
+                simulated_output.append(f"Importing domain settings: {setting_type}")
+                simulated_output.append(f"  ✓ Reading configuration files... Done")
+                simulated_output.append(f"  ✓ Validating data... Done")
+                simulated_output.append(f"  ✓ Importing to database... Done")
                 simulated_output.append(f"")
             
-            simulated_output.append(f"All imports completed successfully!")
+            simulated_output.append(f"All domain settings imported successfully!")
             simulated_output.append(f"Session closed.")
             
             full_output = '\n'.join(simulated_output)
@@ -227,6 +202,7 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
             
             # Write log file
             log_content = '\n'.join(log_lines)
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
             with open(log_file_path, 'w', encoding='utf-8') as log_file:
                 log_file.write(log_content)
             
@@ -240,13 +216,14 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
         else:
             # REAL CLI execution
             # Build CLI bin directory path
-            base_path = st.session_state.get("base_drive", "E:") + "\\"
+            base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
             cli_bin_path = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
             
             # Check if CLI directory exists
             if not os.path.exists(cli_bin_path):
                 error_msg = f"CLI directory not found: {cli_bin_path}"
                 log_lines.append(f"\nERROR: {error_msg}")
+                os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
                 with open(log_file_path, 'w', encoding='utf-8') as log_file:
                     log_file.write('\n'.join(log_lines))
                 return {
@@ -296,6 +273,7 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
             
             # Write log file
             log_content = '\n'.join(log_lines)
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
             with open(log_file_path, 'w', encoding='utf-8') as log_file:
                 log_file.write(log_content)
             
@@ -318,6 +296,7 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
         process.kill()
         error_msg = "Command execution timed out (5 minutes)"
         log_lines.append(f"\n\nERROR: {error_msg}")
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
         with open(log_file_path, 'w', encoding='utf-8') as log_file:
             log_file.write('\n'.join(log_lines))
         return {
@@ -330,6 +309,7 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
         error_msg = str(e)
         log_lines.append(f"\n\nEXCEPTION: {error_msg}")
         try:
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
             with open(log_file_path, 'w', encoding='utf-8') as log_file:
                 log_file.write('\n'.join(log_lines))
         except:

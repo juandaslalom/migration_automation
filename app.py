@@ -9,6 +9,7 @@ from tabs.tab4 import render_tab4
 from tabs.tab5 import render_tab5
 from tabs.tab6 import render_tab6
 from tabs.tab7 import render_tab7
+from tabs.tab8 import render_tab8
 
 # Development mode settings file
 DEV_SETTINGS_FILE = "dev_session_state.json"
@@ -90,7 +91,7 @@ with st.sidebar:
     st.markdown("---")
 
 # Create tabs for Setup Steps
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "Folder Migration", "Import Files", "E3 Import", "CLI Import"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "Folder Migration", "Import Files", "E3 Import", "CLI Import", "Dashboard CLI Import"])
 
 with tab1:
     render_tab1()
@@ -112,3 +113,6 @@ with tab6:
 
 with tab7:
     render_tab7()
+
+with tab8:
+    render_tab8()
