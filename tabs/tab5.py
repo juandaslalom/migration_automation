@@ -9,14 +9,10 @@ import re
 def render_tab5() -> None:
     st.subheader("Import Files")
 
-    def _get_base_path() -> str:
-        """Resolve base path using UNC override if provided, else drive letter."""
-        override = st.session_state.get("base_path_override", "").strip()
-        if override:
-            return override.rstrip("\\/")
-        base_drive_val = st.session_state.get("base_drive", "").strip()
-        if base_drive_val:
-            return base_drive_val if base_drive_val.endswith("\\") else base_drive_val + "\\"
+    def _get_lower_base_path() -> str:
+        lower_base = st.session_state.get("lower_base_path", "").strip()
+        if lower_base:
+            return lower_base.rstrip("\\/")
         return ""
     
     st.markdown("""
@@ -28,14 +24,43 @@ def render_tab5() -> None:
     
     st.markdown("---")
     
-    # Path of the lower server
+    # Path of the lower server (derived from Tab 1)
     st.markdown("**Path of the lower server**")
-    lower_server_path = st.text_input(
-        "Path of the lower server (where the migration folder is currently located)",
-        key="lower_server_path",
-        placeholder=r"\\wa01928q\e$\Applied Materials\SmartFactoryRx_WESTPORT\Migration\<Release Name>",
-        label_visibility="collapsed"
-    )
+
+    site_name = st.session_state.get("site_name", "WESTPORT").strip() or "WESTPORT"
+    release_name = st.session_state.get("release_name", "").strip()
+    lower_base = _get_lower_base_path()
+    default_lower_path = ""
+
+    if lower_base and release_name:
+        default_lower_path = os.path.join(
+            lower_base,
+            "Applied Materials",
+            f"SmartFactoryRx_{site_name}",
+            "Migration",
+            release_name,
+        )
+
+    if default_lower_path:
+        st.info(
+            f"Using lower server path from Tab 1 settings:\n\n`{default_lower_path}`\n\nUpdate Tab 1 if this looks incorrect."
+        )
+    else:
+        st.warning("Lower server path is empty. Please fill site name, lower server base path, and release name in Tab 1.")
+
+    use_custom_lower = st.checkbox("Use custom lower server path", key="use_custom_lower_path")
+
+    if use_custom_lower:
+        custom_lower_path = st.text_input(
+            "Custom lower server path (where the migration folder is currently located)",
+            key="custom_lower_server_path",
+            placeholder=r"\\wa01928q\e$\Applied Materials\SmartFactoryRx_<Site>\Migration\<Release Name>",
+            value=default_lower_path,
+            label_visibility="collapsed",
+        )
+        st.session_state["lower_server_path"] = custom_lower_path.strip()
+    else:
+        st.session_state["lower_server_path"] = default_lower_path
     
     st.markdown("---")
     
@@ -43,10 +68,8 @@ def render_tab5() -> None:
     st.markdown("**Path of the env server**")
     
     # Get site name from session state to build default path
-    site_name = st.session_state.get("site_name", "WESTPORT")
-    base_drive = st.session_state.get("base_drive", "E:")
-    base_path_override = st.session_state.get("base_path_override", "").strip()
-    base_for_env = base_path_override if base_path_override else base_drive
+    upper_base = st.session_state.get("upper_base_path", "").strip()
+    base_for_env = upper_base if upper_base else "\\\\<upper-server>\\share$"
     default_env_path = f"{base_for_env}\\Applied Materials\\SmartFactoryRx_{site_name}-env"
     
     st.info(f"📍 Migration folder will be copied to:\n\n`{default_env_path}\\Migration`")
@@ -58,7 +81,8 @@ def render_tab5() -> None:
         custom_env_path = st.text_input(
             "Custom env server path",
             key="custom_env_server_path",
-            placeholder=r"E:\Applied Materials\SmartFactoryRx_WESTPORT-env",
+            placeholder=r"\\upper-server\share$\\Applied Materials\\SmartFactoryRx_<Site>-env",
+            value=default_env_path,
             label_visibility="collapsed"
         )
         # Store the custom path in session state
@@ -80,7 +104,7 @@ def render_tab5() -> None:
             env_path = st.session_state.get("env_server_path", "").strip().strip('"').strip("'")
             
             if not lower_path:
-                st.error("Please enter the path of the lower server")
+                st.error("Lower server path is missing. Please update Tab 1 (site, lower base path, release name) or provide a custom lower path here.")
             elif not env_path:
                 st.error("Please enter the path of the env server")
             else:

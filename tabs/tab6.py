@@ -1,7 +1,6 @@
 import streamlit as st
 import subprocess
 import time
-from datetime import datetime, timedelta
 
 
 def render_tab6() -> None:
@@ -27,158 +26,57 @@ def render_tab6() -> None:
     
     # Test mode toggle
     test_mode = st.checkbox("🧪 Test Mode (simulate without real services)", value=False, key="service_test_mode")
-    
+
     # Get site name from session state
     site_name = st.session_state.get("site_name", "")
-    
+
     if not site_name:
         st.warning("⚠️ Please complete Setup Steps (Tab 1) to set the site name first.")
     else:
         st.info(f"Site: **{site_name}**" + (" | **TEST MODE**" if test_mode else ""))
-        
-        # Initialize last restart time in session state
-        if "last_service_restart_time" not in st.session_state:
-            st.session_state["last_service_restart_time"] = None
-        
-        # Check if 7 seconds have passed since last restart
-        can_restart = True
-        remaining_seconds = 0
-        
-        if st.session_state["last_service_restart_time"]:
-            elapsed = (datetime.now() - st.session_state["last_service_restart_time"]).total_seconds()
-            if elapsed < 7:
-                can_restart = False
-                remaining_seconds = int(7 - elapsed) + 1
-        
-        # Show waiting message if needed
-        if not can_restart:
-            st.warning(f"⏳ Please wait {remaining_seconds} more second(s) before restarting another service...")
-            time.sleep(1)
-            st.rerun()
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("🔄 Restart E3Client Service", use_container_width=True, disabled=not can_restart):
-                service_name = f"SFRx_{site_name}_E3Client"
-                with st.spinner(f"Restarting {service_name}..."):
-                    if test_mode:
-                        # Simulate service restart
-                        time.sleep(2)
-                        st.success(f"✅ {service_name} restarted successfully! (simulated)")
-                        st.session_state["last_service_restart_time"] = datetime.now()
-                    else:
-                        try:
-                            # Stop the service
-                            stop_result = subprocess.run(
-                                ["net", "stop", service_name],
-                                capture_output=True,
-                                text=True,
-                                shell=True
-                            )
-                            
-                            # Start the service
-                            start_result = subprocess.run(
-                                ["net", "start", service_name],
-                                capture_output=True,
-                                text=True,
-                                shell=True
-                            )
-                            
-                            if start_result.returncode == 0:
-                                st.success(f"✅ {service_name} restarted successfully!")
-                                # Update last restart time
-                                st.session_state["last_service_restart_time"] = datetime.now()
-                            else:
-                                st.error(f"❌ Failed to restart {service_name}\n\n{start_result.stderr}")
-                        except Exception as e:
-                            st.error(f"Error restarting service: {str(e)}")
-        
-        with col2:
-            if st.button("🔄 Restart Portal Service", use_container_width=True, disabled=not can_restart):
-                service_name = f"SFRx_{site_name}_Portal"
-                with st.spinner(f"Restarting {service_name}..."):
-                    if test_mode:
-                        # Simulate service restart
-                        time.sleep(2)
-                        st.success(f"✅ {service_name} restarted successfully! (simulated)")
-                        st.session_state["last_service_restart_time"] = datetime.now()
-                    else:
-                        try:
-                            # Stop the service
-                            stop_result = subprocess.run(
-                                ["net", "stop", service_name],
-                                capture_output=True,
-                                text=True,
-                                shell=True
-                            )
-                            
-                            # Start the service
-                            start_result = subprocess.run(
-                                ["net", "start", service_name],
-                                capture_output=True,
-                                text=True,
-                                shell=True
-                            )
-                            
-                            if start_result.returncode == 0:
-                                st.success(f"✅ {service_name} restarted successfully!")
-                                # Update last restart time
-                                st.session_state["last_service_restart_time"] = datetime.now()
-                            else:
-                                st.error(f"❌ Failed to restart {service_name}\n\n{start_result.stderr}")
-                        except Exception as e:
-                            st.error(f"Error restarting service: {str(e)}")
-        
+
+        def _restart_service(service_name: str) -> bool:
+            """Restart a Windows service; simulate when test_mode is on."""
+            if test_mode:
+                time.sleep(1)
+                st.success(f"✅ {service_name} restarted (simulated)")
+                return True
+            try:
+                stop_result = subprocess.run(
+                    ["net", "stop", service_name],
+                    capture_output=True,
+                    text=True,
+                    shell=True,
+                )
+
+                start_result = subprocess.run(
+                    ["net", "start", service_name],
+                    capture_output=True,
+                    text=True,
+                    shell=True,
+                )
+
+                if start_result.returncode == 0:
+                    st.success(f"✅ {service_name} restarted")
+                    return True
+                st.error(f"❌ Failed to restart {service_name}\n\n{start_result.stderr}")
+                return False
+            except Exception as e:
+                st.error(f"Error restarting {service_name}: {str(e)}")
+                return False
+
         st.markdown("---")
-        
-        # Option to restart both at once
+
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🔄 Restart Both Services", type="primary", use_container_width=True, disabled=not can_restart):
-                services = [
-                    f"SFRx_{site_name}_E3Client",
-                    f"SFRx_{site_name}_Portal"
-                ]
-                
-                with st.spinner("Restarting services..."):
-                    if test_mode:
-                        # Simulate both services restart
-                        for service_name in services:
-                            time.sleep(1)
-                            st.success(f"✅ {service_name} restarted (simulated)")
-                        st.success("✅ All services restarted successfully! (simulated)")
-                        st.session_state["last_service_restart_time"] = datetime.now()
-                    else:
-                        all_success = True
-                        for service_name in services:
-                            try:
-                                # Stop the service
-                                subprocess.run(
-                                    ["net", "stop", service_name],
-                                    capture_output=True,
-                                    text=True,
-                                    shell=True
-                                )
-                                
-                                # Start the service
-                                start_result = subprocess.run(
-                                    ["net", "start", service_name],
-                                    capture_output=True,
-                                    text=True,
-                                    shell=True
-                                )
-                                
-                                if start_result.returncode != 0:
-                                    st.error(f"❌ Failed to restart {service_name}")
-                                    all_success = False
-                                else:
-                                    st.success(f"✅ {service_name} restarted")
-                            except Exception as e:
-                                st.error(f"Error restarting {service_name}: {str(e)}")
-                                all_success = False
-                        
-                        if all_success:
-                            st.success("✅ All services restarted successfully!")
-                            # Update last restart time
-                            st.session_state["last_service_restart_time"] = datetime.now()
+            if st.button("🔄 Restart E3Client then Portal", type="primary", use_container_width=True):
+                e3_client_service = f"SFRx_{site_name}_E3Client"
+                portal_service = f"SFRx_{site_name}_Portal"
+
+                with st.spinner("Restarting services in order..."):
+                    first_ok = _restart_service(e3_client_service)
+
+                    if first_ok:
+                        st.info("Waiting 7 seconds before restarting Portal...")
+                        time.sleep(7)
+                        _restart_service(portal_service)

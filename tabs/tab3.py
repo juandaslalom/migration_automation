@@ -8,23 +8,21 @@ from pathlib import Path
 def render_tab3() -> None:
     st.subheader("CLI Export")
 
-    def _get_base_path() -> str:
-        """Resolve base path using UNC override if provided, else drive letter."""
-        override = st.session_state.get("base_path_override", "").strip()
-        if override:
-            return override.rstrip("\\/")
-        base_drive = st.session_state.get("base_drive", "").strip()
-        if base_drive:
-            return base_drive if base_drive.endswith("\\") else base_drive + "\\"
-        return ""
+    st.info("Run this CLI Export from the **lower/QA server**. Ensure Tab 1 lower base path points to the lower server before generating or running commands.")
+
+    def _get_lower_base_path() -> str:
+        """Resolve lower server base path (UNC)."""
+        lower_base = st.session_state.get("lower_base_path", "").strip()
+        if not lower_base:
+            return ""
+        return lower_base.rstrip("\\/")
     
     # Generate Commands button
     if st.button("Generate Commands", key="generate_cli_commands"):
         # Get data from session state
         site_name = st.session_state.get("site_name", "")
         release_name = st.session_state.get("release_name", "")
-        base_drive = st.session_state.get("base_drive", "").strip()
-        base_path_override = st.session_state.get("base_path_override", "").strip()
+        lower_base = st.session_state.get("lower_base_path", "").strip()
         equipments_file = st.session_state.get("equipments_file")
         equipments_text = st.session_state.get("equipments_text", "")
         
@@ -33,14 +31,14 @@ def render_tab3() -> None:
             st.error("Please enter the site name in Setup Steps (Tab 1)")
         elif not release_name:
             st.error("Please enter the release name in Setup Steps (Tab 1)")
-        elif not (base_drive or base_path_override):
-            st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
+        elif not lower_base:
+            st.error("Please enter the lower server base path in Setup Steps (Tab 1)")
         elif not equipments_file and not equipments_text:
             st.error("Please upload the equipments file or enter equipment names in Setup Steps (Tab 1)")
         else:
             try:
                 # Build the migration path
-                base_path = _get_base_path()
+                base_path = _get_lower_base_path()
                 migration_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
                 
                 # Generate commands logic here
@@ -74,16 +72,15 @@ def render_tab3() -> None:
                 try:
                     site_name = st.session_state.get("site_name", "")
                     release_name = st.session_state.get("release_name", "")
-                    base_drive = st.session_state.get("base_drive", "").strip()
-                    base_path_override = st.session_state.get("base_path_override", "").strip()
+                    lower_base = st.session_state.get("lower_base_path", "").strip()
                     equipments_file = st.session_state.get("equipments_file")
                     equipments_text = st.session_state.get("equipments_text", "")
                     test_mode = st.session_state.get("cli_test_mode", False)
                     
                     # Build the migration path
-                    base_path = _get_base_path()
+                    base_path = _get_lower_base_path()
                     if not base_path:
-                        st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
+                        st.error("Please enter the lower server base path in Setup Steps (Tab 1)")
                         st.stop()
                     migration_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
                     
@@ -106,9 +103,8 @@ def render_tab3() -> None:
     
     # Instructions - show dynamic path
     site_name = st.session_state.get("site_name", "")
-    base_drive = st.session_state.get("base_drive", "E:")
-    base_path_override = st.session_state.get("base_path_override", "").strip()
-    base_for_display = base_path_override if base_path_override else base_drive
+    lower_base = st.session_state.get("lower_base_path", "").strip()
+    base_for_display = lower_base if lower_base else "\\\\<lower-server>\\share$"
     
     if site_name:
         cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
@@ -261,13 +257,17 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
         
         else:
             # REAL CLI execution
-            # Build CLI bin directory path (supports UNC override)
-            base_override = st.session_state.get("base_path_override", "").strip()
+            # Build CLI bin directory path (lower server base path)
+            base_override = st.session_state.get("lower_base_path", "").strip()
             if base_override:
                 base_path = base_override.rstrip("\\/")
             else:
-                base_drive_val = st.session_state.get("base_drive", "E:")
-                base_path = base_drive_val if base_drive_val.endswith("\\") else base_drive_val + "\\"
+                return {
+                    "success": False,
+                    "output": "",
+                    "error": "Lower server base path is required in Setup (Tab 1)",
+                    "log_file": log_file_path
+                }
             cli_bin_path = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
             
             # Check if CLI directory exists

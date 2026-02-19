@@ -7,6 +7,8 @@ from datetime import datetime
 def render_tab8() -> None:
     st.subheader("Dashboard CLI Import")
 
+    st.info("Run this CLI Import on the **upper/ENV server**. Switch to the upper server before executing these commands.")
+
     def _get_base_path() -> str:
         """Resolve base path using UNC override if provided, else drive letter."""
         override = st.session_state.get("base_path_override", "").strip()

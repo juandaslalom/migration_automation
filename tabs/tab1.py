@@ -13,25 +13,25 @@ def render_tab1() -> None:
         key="site_name"
     )
 
-    st.selectbox(
-        "Select the base drive",
-        options=["C:", "D:", "E:"],
-        key="base_drive",
-        help="Local drive letter (useful for single-machine runs)"
+    st.text_input(
+        "Lower server base path (UNC)",
+        placeholder=r"\\\\lower-server\\share$ (e.g., \\wa01928q\\e$)",
+        key="lower_base_path",
+        help="Root path where QA/lower environment files live."
     )
 
     st.text_input(
-        "POC: UNC base path (optional)",
-        placeholder=r"\\\\server\\share$ (e.g., \\wa01928q\\e$)",
-        key="base_path_override",
-        help="For network POC, enter a UNC root to build all paths from this server/share. Overrides drive letter when provided."
+        "Upper server base path (UNC)",
+        placeholder=r"\\\\upper-server\\share$ (e.g., \\wa01928p\\e$)",
+        key="upper_base_path",
+        help="Root path where ENV/upper environment files live."
     )
 
     st.text_input(
         "Enter the release name (this will be the migration folder name)",
         placeholder="<Release Name>",
         key="release_name",
-        help=r"Example: E:\Applied Materials\SmartFactoryRx_Westport\Migration\<Release Name>"
+        help=r"Example: \\\\lower-server\\Applied Materials\\SmartFactoryRx_<Site>\\Migration\\<Release Name>"
     )
 
     st.markdown("---")
@@ -88,21 +88,24 @@ def render_tab1() -> None:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("📁 Create Migration Folder and Save Excel File", type="primary", use_container_width=True):
-            base_drive = st.session_state.get("base_drive", "").strip()
+            site_name = st.session_state.get("site_name", "").strip()
+            lower_base = st.session_state.get("lower_base_path", "").strip()
             release_name = st.session_state.get("release_name", "").strip()
             excel_file = st.session_state.get("excel_file")
-            
-            if not base_drive:
-                st.error("Please enter the base drive")
+
+            if not site_name:
+                st.error("Please enter the site name")
+            elif not lower_base:
+                st.error("Please enter the lower server base path")
             elif not release_name:
                 st.error("Please enter the release name")
             elif not excel_file:
                 st.error("Please upload an excel file first")
             else:
                 try:
-                    # Build the migration path - ensure backslash after drive letter
-                    base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
-                    migration_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
+                    # Build the migration path from the lower UNC base
+                    base_path = lower_base.rstrip("\\/")
+                    migration_path = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Migration", release_name)
                     
                     # Show the path that will be created
                     st.info(f"Creating folder at: {migration_path}")
@@ -114,7 +117,7 @@ def render_tab1() -> None:
                     if os.path.exists(migration_path):
                         st.success(f"✅ Folder created successfully at:\n{migration_path}")
                     
-                    # Save the excel file
+                    # Save the excel file into the migration folder
                     excel_path = os.path.join(migration_path, excel_file.name)
                     with open(excel_path, "wb") as f:
                         f.write(excel_file.getbuffer())
