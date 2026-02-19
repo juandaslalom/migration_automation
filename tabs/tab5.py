@@ -8,6 +8,16 @@ import re
 
 def render_tab5() -> None:
     st.subheader("Import Files")
+
+    def _get_base_path() -> str:
+        """Resolve base path using UNC override if provided, else drive letter."""
+        override = st.session_state.get("base_path_override", "").strip()
+        if override:
+            return override.rstrip("\\/")
+        base_drive_val = st.session_state.get("base_drive", "").strip()
+        if base_drive_val:
+            return base_drive_val if base_drive_val.endswith("\\") else base_drive_val + "\\"
+        return ""
     
     st.markdown("""
     **LOG IN TO THE ENV SERVER (upper)**
@@ -35,7 +45,9 @@ def render_tab5() -> None:
     # Get site name from session state to build default path
     site_name = st.session_state.get("site_name", "WESTPORT")
     base_drive = st.session_state.get("base_drive", "E:")
-    default_env_path = f"{base_drive}\\Applied Materials\\SmartFactoryRx_{site_name}-env"
+    base_path_override = st.session_state.get("base_path_override", "").strip()
+    base_for_env = base_path_override if base_path_override else base_drive
+    default_env_path = f"{base_for_env}\\Applied Materials\\SmartFactoryRx_{site_name}-env"
     
     st.info(f"📍 Migration folder will be copied to:\n\n`{default_env_path}\\Migration`")
     

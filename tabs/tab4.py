@@ -6,6 +6,16 @@ from pathlib import Path
 
 def render_tab4() -> None:
     st.subheader("Folder Migration")
+
+    def _get_base_path() -> str:
+        """Resolve base path using UNC override if provided, else drive letter."""
+        override = st.session_state.get("base_path_override", "").strip()
+        if override:
+            return override.rstrip("\\/")
+        base_drive_val = st.session_state.get("base_drive", "").strip()
+        if base_drive_val:
+            return base_drive_val if base_drive_val.endswith("\\") else base_drive_val + "\\"
+        return ""
     
     st.markdown("""
     Insert all the paths of the folders to be migrated (located in the column others of the excel file)
@@ -27,15 +37,19 @@ def render_tab4() -> None:
         if st.button("📋 Copy Folders to Migration", type="primary", use_container_width=True):
             folders = st.session_state.get("folders_to_migrate", "")
             base_drive = st.session_state.get("base_drive", "").strip()
+            base_path_override = st.session_state.get("base_path_override", "").strip()
             release_name = st.session_state.get("release_name", "").strip()
             
             if not folders:
                 st.error("Please enter the paths of folders to migrate")
-            elif not base_drive or not release_name:
-                st.error("Please complete the setup information in Tab 1 (base drive and release name)")
+            elif not (base_drive or base_path_override) or not release_name:
+                st.error("Please complete the setup information in Tab 1 (base drive/UNC path and release name)")
             else:
                 # Build the migration path
-                base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
+                base_path = _get_base_path()
+                if not base_path:
+                    st.error("Please configure base drive or UNC path in Tab 1")
+                    st.stop()
                 migration_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
                 try:
                     # Parse folder paths (one per line)

@@ -17,7 +17,14 @@ def render_tab1() -> None:
         "Select the base drive",
         options=["C:", "D:", "E:"],
         key="base_drive",
-        help="The drive where Applied Materials folder is located"
+        help="Local drive letter (useful for single-machine runs)"
+    )
+
+    st.text_input(
+        "POC: UNC base path (optional)",
+        placeholder=r"\\\\server\\share$ (e.g., \\wa01928q\\e$)",
+        key="base_path_override",
+        help="For network POC, enter a UNC root to build all paths from this server/share. Overrides drive letter when provided."
     )
 
     st.text_input(

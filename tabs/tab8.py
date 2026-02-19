@@ -6,22 +6,34 @@ from datetime import datetime
 
 def render_tab8() -> None:
     st.subheader("Dashboard CLI Import")
+
+    def _get_base_path() -> str:
+        """Resolve base path using UNC override if provided, else drive letter."""
+        override = st.session_state.get("base_path_override", "").strip()
+        if override:
+            return override.rstrip("\\/")
+        base_drive_val = st.session_state.get("base_drive", "").strip()
+        if base_drive_val:
+            return base_drive_val if base_drive_val.endswith("\\") else base_drive_val + "\\"
+        return ""
     
     # Generate Commands button
     if st.button("Generate Commands", key="generate_dashboard_cli_commands"):
         # Get data from session state
         site_name = st.session_state.get("site_name", "")
         base_drive = st.session_state.get("base_drive", "").strip()
+        base_path_override = st.session_state.get("base_path_override", "").strip()
         
         # Validate inputs
         if not site_name:
             st.error("Please enter the site name in Setup Steps (Tab 1)")
-        elif not base_drive:
-            st.error("Please select the base drive in Setup Steps (Tab 1)")
+        elif not (base_drive or base_path_override):
+            st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
         else:
             try:
                 # Generate commands logic here
-                commands = generate_dashboard_cli_commands(site_name, base_drive)
+                base_root = _get_base_path()
+                commands = generate_dashboard_cli_commands(site_name, base_root)
                 st.session_state['dashboard_cli_commands'] = commands
             except Exception as e:
                 st.error(f"Error generating commands: {str(e)}")
@@ -61,6 +73,7 @@ def render_tab8() -> None:
                 try:
                     site_name = st.session_state.get("site_name", "")
                     base_drive = st.session_state.get("base_drive", "").strip()
+                    base_path_override = st.session_state.get("base_path_override", "").strip()
                     test_mode = st.session_state.get("dashboard_cli_test_mode", False)
                     
                     # Get credentials (only in production mode)
@@ -75,12 +88,15 @@ def render_tab8() -> None:
                             st.stop()
                     
                     # Build the migration path for log file
-                    base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
-                    log_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Portal", "data", "static")
+                    base_root = _get_base_path()
+                    if not base_root:
+                        st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
+                        st.stop()
+                    log_folder_path = os.path.join(base_root, "Applied Materials", "SmartFactoryRx_Westport", "Portal", "data", "static")
                     
                     # Run the commands
                     with st.spinner("Running Dashboard CLI commands..." if not test_mode else "Simulating Dashboard CLI commands..."):
-                        result = run_dashboard_cli_commands(site_name, base_drive, log_folder_path, test_mode, cli_username, cli_password)
+                        result = run_dashboard_cli_commands(site_name, base_root, log_folder_path, test_mode, cli_username, cli_password)
                     
                     if result["success"]:
                         st.success(f"✅ Commands executed successfully!\n\nLog file: {result['log_file']}")
@@ -98,11 +114,13 @@ def render_tab8() -> None:
     # Instructions - show dynamic path
     site_name = st.session_state.get("site_name", "")
     base_drive = st.session_state.get("base_drive", "E:")
+    base_path_override = st.session_state.get("base_path_override", "").strip()
+    base_for_display = base_path_override if base_path_override else base_drive
     
     if site_name:
-        cli_path = f"{base_drive}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
     else:
-        cli_path = f"{base_drive}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
     
     st.markdown(f"""
     ### Instructions:
@@ -124,7 +142,10 @@ def generate_dashboard_cli_commands(site_name: str, base_drive: str) -> str:
     """Generate Dashboard CLI import commands"""
     
     # Build the static file directory path
-    base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
+    if base_drive.startswith("\\"):
+        base_path = base_drive.rstrip("\\/")
+    else:
+        base_path = base_drive if base_drive.endswith("\\") else base_drive + "\\"
     static_directory = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Portal", "data", "static")
     
     # Build commands
@@ -216,7 +237,10 @@ def run_dashboard_cli_commands(site_name: str, base_drive: str, log_folder_path:
         else:
             # REAL CLI execution
             # Build CLI bin directory path
-            base_path = base_drive + "\\" if not base_drive.endswith("\\") else base_drive
+            if base_drive.startswith("\\"):
+                base_path = base_drive.rstrip("\\/")
+            else:
+                base_path = base_drive if base_drive.endswith("\\") else base_drive + "\\"
             cli_bin_path = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
             
             # Check if CLI directory exists
