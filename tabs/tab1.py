@@ -7,25 +7,64 @@ def render_tab1() -> None:
     # Input fields
     st.subheader("Setup Information")
 
-    st.text_input(
-        "Enter the site name",
-        placeholder="<Site Name>",
-        key="site_name"
+    def _server_path(hostname: str) -> str:
+        return f"\\\\{hostname}\\e$"
+
+    SERVER_OPTIONS = [
+        ("DEV App 1 - WA02835D (ABC, Sligo, Westport)", "WA02835D"),
+        ("DEV App 2 - WA02836D (AP16, ABL, CampoC)", "WA02836D"),
+        ("DEV App 3 - WA03144D (APL, ABS, LU)", "WA03144D"),
+        ("DEV App 4 - WA02857D (Cork, AND)", "WA02857D"),
+            ("QA App 1 - WA01928Q (ABC, Sligo, Westport)", "WA01928Q"),
+        ("QA App 2 - WA01929Q (AP16, ABL, CampoC)", "WA01929Q"),
+        ("QA App 3 - WA02101Q (APL, ABS, LU)", "WA02101Q"),
+        ("QA App 4 - WA02102Q (Cork, AND)", "WA02102Q"),
+        ("PROD App 1 - WA04756P (ABC, Sligo, Westport)", "WA04756P"),
+        ("PROD App 2 - WA04757P (AP16, ABL, CampoC)", "WA04757P"),
+        ("PROD App 3 - WA04862P (APL, ABS, LU)", "WA04862P"),
+        ("PROD App 4 - WA04863P (Cork, AND)", "WA04863P"),
+    ]
+
+    st.segmented_control(
+            "Select the site name",
+        options=[
+            "ABC",
+            "Sligo",
+            "Westport",
+            "AP16",
+            "ABL",
+            "CampoC",
+            "APL",
+            "ABS",
+            "LU",
+            "Cork",
+            "AND",
+        ],
+        key="site_name",
+        selection_mode="single",
     )
 
-    st.text_input(
-        "Lower server base path (UNC)",
-        placeholder=r"\\\\lower-server\\share$ (e.g., \\wa01928q\\e$)",
-        key="lower_base_path",
-        help="Root path where QA/lower environment files live."
+    st.selectbox(
+        "Select lower server",
+        options=SERVER_OPTIONS,
+        format_func=lambda opt: opt[0],
+        key="lower_server_choice",
     )
+    lower_hostname = st.session_state.get("lower_server_choice", SERVER_OPTIONS[0])[1]
+    lower_base_path = _server_path(lower_hostname)
+    st.session_state["lower_base_path"] = lower_base_path
+    st.caption(f"Lower path: {lower_base_path}")
 
-    st.text_input(
-        "Upper server base path (UNC)",
-        placeholder=r"\\\\upper-server\\share$ (e.g., \\wa01928p\\e$)",
-        key="upper_base_path",
-        help="Root path where ENV/upper environment files live."
+    st.selectbox(
+        "Select upper server",
+        options=SERVER_OPTIONS,
+        format_func=lambda opt: opt[0],
+        key="upper_server_choice",
     )
+    upper_hostname = st.session_state.get("upper_server_choice", SERVER_OPTIONS[0])[1]
+    upper_base_path = _server_path(upper_hostname)
+    st.session_state["upper_base_path"] = upper_base_path
+    st.caption(f"Upper path: {upper_base_path}")
 
     st.text_input(
         "Enter the release name (this will be the migration folder name)",

@@ -16,10 +16,10 @@ def render_tab5() -> None:
         return ""
     
     st.markdown("""
-    **LOG IN TO THE ENV SERVER (upper)**
+    **LOG IN TO THE UPPER SERVER**
     
-    This tab is used after migration steps have been executed in the lower server (QA).  
-    Copy the migration folder from the lower server to the env server, create backups, and transfer folders.
+    This tab is used after migration steps have been executed in the lower server.  
+    Copy the migration folder from the lower server to the upper server, create backups, and transfer folders.
     """)
     
     st.markdown("---")
@@ -64,8 +64,8 @@ def render_tab5() -> None:
     
     st.markdown("---")
     
-    # Path of the env server
-    st.markdown("**Path of the env server**")
+    # Path of the upper server
+    st.markdown("**Path of the upper server**")
     
     # Get site name from session state to build default path
     upper_base = st.session_state.get("upper_base_path", "").strip()
@@ -75,11 +75,11 @@ def render_tab5() -> None:
     st.info(f"📍 Migration folder will be copied to:\n\n`{default_env_path}\\Migration`")
     
     # Option to use custom path
-    use_custom = st.checkbox("Use custom env server path", key="use_custom_env_path")
+    use_custom = st.checkbox("Use custom upper server path", key="use_custom_env_path")
     
     if use_custom:
         custom_env_path = st.text_input(
-            "Custom env server path",
+            "Custom upper server path",
             key="custom_env_server_path",
             placeholder=r"\\upper-server\share$\\Applied Materials\\SmartFactoryRx_<Site>-env",
             value=default_env_path,
@@ -106,7 +106,7 @@ def render_tab5() -> None:
             if not lower_path:
                 st.error("Lower server path is missing. Please update Tab 1 (site, lower base path, release name) or provide a custom lower path here.")
             elif not env_path:
-                st.error("Please enter the path of the env server")
+                st.error("Please enter the path of the upper server")
             else:
                 try:
                     # Check if lower server path exists

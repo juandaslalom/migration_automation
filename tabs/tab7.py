@@ -8,14 +8,32 @@ from datetime import datetime
 def render_tab7() -> None:
     st.subheader("Portal Dashboard Migration – CLI Import")
 
+    # Instructions and effective CLI path (shown upfront)
+    site_name = st.session_state.get("site_name", "")
+    upper_base = st.session_state.get("upper_base_path", "").strip()
+    base_for_display = upper_base if upper_base else r"\\<upper-server>\e$"
+
+    if site_name:
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
+    else:
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
+
+    st.markdown(
+        f"""
+        ### Instructions
+        Run on the upper server. Commands will execute in `{cli_path}` automatically.
+
+        1. Click **Generate Commands** to create the CLI import commands.
+        2. Review the generated commands.
+        3. Click **▶️ Run CLI Import Commands** to execute them automatically.
+        """
+    )
+
     def _get_base_path() -> str:
-        """Resolve base path using UNC override if provided, else drive letter."""
-        override = st.session_state.get("base_path_override", "").strip()
-        if override:
-            return override.rstrip("\\/")
-        base_drive_val = st.session_state.get("base_drive", "").strip()
-        if base_drive_val:
-            return base_drive_val if base_drive_val.endswith("\\") else base_drive_val + "\\"
+        """Resolve upper server base path from Tab 1 selection."""
+        upper_base_val = st.session_state.get("upper_base_path", "").strip()
+        if upper_base_val:
+            return upper_base_val.rstrip("\\/")
         return ""
     
     # Generate Commands button
@@ -23,8 +41,6 @@ def render_tab7() -> None:
         # Get data from session state
         site_name = st.session_state.get("site_name", "")
         release_name = st.session_state.get("release_name", "")
-        base_drive = st.session_state.get("base_drive", "").strip()
-        base_path_override = st.session_state.get("base_path_override", "").strip()
         equipments_file = st.session_state.get("equipments_file")
         equipments_text = st.session_state.get("equipments_text", "")
         
@@ -33,8 +49,8 @@ def render_tab7() -> None:
             st.error("Please enter the site name in Setup Steps (Tab 1)")
         elif not release_name:
             st.error("Please enter the release name in Setup Steps (Tab 1)")
-        elif not (base_drive or base_path_override):
-            st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
+        elif not _get_base_path():
+            st.error("Please select the upper server in Setup Steps (Tab 1)")
         elif not equipments_file and not equipments_text:
             st.error("Please upload the equipments file or enter equipment names in Setup Steps (Tab 1)")
         else:
@@ -84,8 +100,6 @@ def render_tab7() -> None:
                 try:
                     site_name = st.session_state.get("site_name", "")
                     release_name = st.session_state.get("release_name", "")
-                    base_drive = st.session_state.get("base_drive", "").strip()
-                    base_path_override = st.session_state.get("base_path_override", "").strip()
                     equipments_file = st.session_state.get("equipments_file")
                     equipments_text = st.session_state.get("equipments_text", "")
                     test_mode = st.session_state.get("cli_import_test_mode", False)
@@ -104,7 +118,7 @@ def render_tab7() -> None:
                     # Build the migration path
                     base_path = _get_base_path()
                     if not base_path:
-                        st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
+                        st.error("Please select the upper server in Setup Steps (Tab 1)")
                         st.stop()
                     migration_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
                     
@@ -125,25 +139,6 @@ def render_tab7() -> None:
                 except Exception as e:
                     st.error(f"Error running commands: {str(e)}")
     
-    # Instructions - show dynamic path
-    site_name = st.session_state.get("site_name", "")
-    base_drive = st.session_state.get("base_drive", "E:")
-    base_path_override = st.session_state.get("base_path_override", "").strip()
-    base_for_display = base_path_override if base_path_override else base_drive
-    
-    if site_name:
-        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
-    else:
-        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
-    
-    st.markdown(f"""
-    ### Instructions:
-    The commands will be automatically executed in the correct CLI directory (`{cli_path}`).
-    
-    1. Click **Generate Commands** to create the CLI import commands
-    2. Review the generated commands
-    3. Click **▶️ Run CLI Import Commands** to execute them automatically
-    """)
 
 
 def generate_cli_import_commands(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str) -> str:

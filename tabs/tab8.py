@@ -7,30 +7,52 @@ from datetime import datetime
 def render_tab8() -> None:
     st.subheader("Dashboard CLI Import")
 
-    st.info("Run this CLI Import on the **upper/ENV server**. Switch to the upper server before executing these commands.")
+    st.info("Run this CLI Import on the **upper server**. Switch to the upper server before executing these commands.")
+
+    # Instructions and effective CLI path (shown upfront)
+    site_name = st.session_state.get("site_name", "")
+    upper_base = st.session_state.get("upper_base_path", "").strip()
+    base_for_display = upper_base if upper_base else r"\\<upper-server>\e$"
+
+    if site_name:
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
+    else:
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
+
+    st.markdown(
+        f"""
+        ### Instructions
+        Commands will be executed in `{cli_path}` automatically.
+
+        1. Click **Generate Commands** to create the Dashboard CLI import commands.
+        2. Review the generated commands.
+        3. Click **▶️ Run Dashboard CLI Commands** to execute them automatically.
+
+        **Commands will import:**
+        - Process Map domain settings
+        - Equipment Health domain settings
+        - Equipment View domain settings
+        - Operation domain settings
+        """
+    )
 
     def _get_base_path() -> str:
-        """Resolve base path using UNC override if provided, else drive letter."""
-        override = st.session_state.get("base_path_override", "").strip()
-        if override:
-            return override.rstrip("\\/")
-        base_drive_val = st.session_state.get("base_drive", "").strip()
-        if base_drive_val:
-            return base_drive_val if base_drive_val.endswith("\\") else base_drive_val + "\\"
+        """Resolve upper server base path from Tab 1 selection."""
+        upper_base_val = st.session_state.get("upper_base_path", "").strip()
+        if upper_base_val:
+            return upper_base_val.rstrip("\\/")
         return ""
     
     # Generate Commands button
     if st.button("Generate Commands", key="generate_dashboard_cli_commands"):
         # Get data from session state
         site_name = st.session_state.get("site_name", "")
-        base_drive = st.session_state.get("base_drive", "").strip()
-        base_path_override = st.session_state.get("base_path_override", "").strip()
         
         # Validate inputs
         if not site_name:
             st.error("Please enter the site name in Setup Steps (Tab 1)")
-        elif not (base_drive or base_path_override):
-            st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
+        elif not _get_base_path():
+            st.error("Please select the upper server in Setup Steps (Tab 1)")
         else:
             try:
                 # Generate commands logic here
@@ -74,8 +96,6 @@ def render_tab8() -> None:
             if st.button("▶️ Run Dashboard CLI Commands", type="primary", use_container_width=True):
                 try:
                     site_name = st.session_state.get("site_name", "")
-                    base_drive = st.session_state.get("base_drive", "").strip()
-                    base_path_override = st.session_state.get("base_path_override", "").strip()
                     test_mode = st.session_state.get("dashboard_cli_test_mode", False)
                     
                     # Get credentials (only in production mode)
@@ -92,7 +112,7 @@ def render_tab8() -> None:
                     # Build the migration path for log file
                     base_root = _get_base_path()
                     if not base_root:
-                        st.error("Please select a base drive or enter a UNC base path in Setup Steps (Tab 1)")
+                        st.error("Please select the upper server in Setup Steps (Tab 1)")
                         st.stop()
                     log_folder_path = os.path.join(base_root, "Applied Materials", "SmartFactoryRx_Westport", "Portal", "data", "static")
                     
@@ -113,31 +133,6 @@ def render_tab8() -> None:
                 except Exception as e:
                     st.error(f"Error running commands: {str(e)}")
     
-    # Instructions - show dynamic path
-    site_name = st.session_state.get("site_name", "")
-    base_drive = st.session_state.get("base_drive", "E:")
-    base_path_override = st.session_state.get("base_path_override", "").strip()
-    base_for_display = base_path_override if base_path_override else base_drive
-    
-    if site_name:
-        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
-    else:
-        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
-    
-    st.markdown(f"""
-    ### Instructions:
-    The commands will be automatically executed in the correct CLI directory (`{cli_path}`).
-    
-    1. Click **Generate Commands** to create the Dashboard CLI import commands
-    2. Review the generated commands
-    3. Click **▶️ Run Dashboard CLI Commands** to execute them automatically
-    
-    **Commands will import:**
-    - Process Map domain settings
-    - Equipment Health domain settings
-    - Equipment View domain settings
-    - Operation domain settings
-    """)
 
 
 def generate_dashboard_cli_commands(site_name: str, base_drive: str) -> str:

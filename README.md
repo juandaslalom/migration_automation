@@ -25,6 +25,7 @@ This application provides a user-friendly interface for managing SmartFactory Rx
   - Network access to SmartFactory Rx servers
   - Administrator privileges (for service restart functionality in Tab 6)
   - Optional: `sfrxcli` installed (for CLI export operations in Tab 3)
+- **Authentication config**: `.streamlit/secrets.toml` with user credentials (see Authentication Setup)
 
 ## Installation
 
@@ -45,6 +46,30 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
+## Authentication Setup
+
+Create `.streamlit/secrets.toml` with cookie settings and user accounts (passwords should be hashed using `streamlit-authenticator`). Example:
+
+```toml
+[auth]
+cookie_name = "sfrx_auth"
+cookie_key = "change_this_key"
+cookie_expiry_days = 7
+
+[[auth.users]]
+name = "Admin User"
+username = "admin"
+password = "$2b$12$...hashed password..."
+```
+
+Generate a hashed password (one time) in Python:
+
+```python
+import streamlit_authenticator as stauth
+
+print(stauth.Hasher(["PlaintextPasswordHere"]).generate()[0])
+```
+
 ## Running the Application
 
 Start the Streamlit application:
@@ -58,11 +83,12 @@ The application will open automatically in your default browser at `http://local
 ## Features
 
 ### Core Functionality
-- **Multi-tab interface** with 7 specialized tabs for different migration phases
+- **Multi-tab interface** with 9 specialized tabs for different migration phases
 - **Session state management** with save/load functionality for development
 - **Path auto-generation** based on site, drive, and release configurations
 - **Test modes** available for CLI and service operations
 - **Comprehensive error handling** with detailed feedback
+- **Login protection** using `streamlit-authenticator`
 
 ### Tab 1: Setup Steps
 - Configure site name, drive letter (C:/D:/E:), and release name

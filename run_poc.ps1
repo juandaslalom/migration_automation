@@ -22,4 +22,4 @@ Write-Host "[*] Installing dependencies from requirements.txt..."
 & python -m pip install -r requirements.txt
 
 Write-Host "[*] Starting Streamlit app (listening on 0.0.0.0:$Port)..."
-& streamlit run app.py --server.address 0.0.0.0 --server.port $Port
+& streamlit run app.py --server.address 0.0.0.0 --server.port $Port --server.headless true

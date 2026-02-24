@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import os
+import streamlit_authenticator as stauth
 
 from tabs.tab1 import render_tab1
 from tabs.tab2 import render_tab2
@@ -52,6 +53,37 @@ st.set_page_config(
     layout="wide"
 )
 
+# Authentication using streamlit-authenticator
+auth_config = st.secrets.get("auth", {})
+users_cfg = auth_config.get("users", [])
+
+if not users_cfg:
+    st.error("Authentication is not configured. Add users under [auth] in .streamlit/secrets.toml.")
+    st.stop()
+
+# Build credentials dict expected by v0.4.x
+credentials = {"usernames": {}}
+for u in users_cfg:
+    credentials["usernames"][u["username"]] = {
+        "name": u.get("name", u["username"]),
+        "password": u["password"],
+    }
+
+authenticator = stauth.Authenticate(
+    credentials,
+    auth_config.get("cookie_name", "sfrx_auth"),
+    auth_config.get("cookie_key", "change_me"),
+    auth_config.get("cookie_expiry_days", 7),
+)
+
+if st.session_state.get("authentication_status") is not True:
+    authenticator.login()
+    if st.session_state.get("authentication_status") is False:
+        st.error("Invalid credentials")
+    elif st.session_state.get("authentication_status") is None:
+        st.warning("Please enter your credentials")
+    st.stop()
+
 # Custom CSS for styling
 st.markdown("""
     <style>
@@ -72,6 +104,10 @@ st.markdown('<div class="main-title">MIGRATION AUTOMATION</div>', unsafe_allow_h
 
 # Development tools (in sidebar)
 with st.sidebar:
+    st.markdown("### 👤 Session")
+    st.caption(f"Signed in as {st.session_state.get('name', '')}")
+    authenticator.logout("Logout", "sidebar")
+    st.markdown("---")
     st.markdown("### 🛠️ Dev Tools")
     col1, col2 = st.columns(2)
     with col1:

@@ -8,7 +8,28 @@ from pathlib import Path
 def render_tab3() -> None:
     st.subheader("CLI Export")
 
-    st.info("Run this CLI Export from the **lower/QA server**. Ensure Tab 1 lower base path points to the lower server before generating or running commands.")
+    st.info("CLI export will run using the lower server selection from Tab 1.")
+
+    # Instructions and effective CLI path (shown upfront)
+    site_name = st.session_state.get("site_name", "")
+    lower_base = st.session_state.get("lower_base_path", "").strip()
+    base_for_display = lower_base if lower_base else r"\\<lower-server>\share$"
+
+    if site_name:
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
+    else:
+        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
+
+    st.markdown(
+        f"""
+        ### Instructions
+        Commands will run in `{cli_path}` automatically.
+
+        1. Click **Generate Commands** to create the CLI export commands.
+        2. Review the generated commands.
+        3. Click **▶️ Run CLI Commands** to execute them automatically.
+        """
+    )
 
     def _get_lower_base_path() -> str:
         """Resolve lower server base path (UNC)."""
@@ -101,24 +122,6 @@ def render_tab3() -> None:
                 except Exception as e:
                     st.error(f"Error running commands: {str(e)}")
     
-    # Instructions - show dynamic path
-    site_name = st.session_state.get("site_name", "")
-    lower_base = st.session_state.get("lower_base_path", "").strip()
-    base_for_display = lower_base if lower_base else "\\\\<lower-server>\\share$"
-    
-    if site_name:
-        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_{site_name}\\CLI\\bin"
-    else:
-        cli_path = f"{base_for_display}\\Applied Materials\\SmartFactoryRx_<Site>\\CLI\\bin"
-    
-    st.markdown(f"""
-    ### Instructions:
-    The commands will be automatically executed in the correct CLI directory (`{cli_path}`).
-    
-    1. Click **Generate Commands** to create the CLI export commands
-    2. Review the generated commands
-    3. Click **▶️ Run CLI Commands** to execute them automatically
-    """)
 
 
 def generate_cli_commands(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str) -> str:
