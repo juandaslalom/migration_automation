@@ -21,5 +21,6 @@ Write-Host "[*] Installing dependencies from requirements.txt..."
 & python -m pip install --upgrade pip
 & python -m pip install -r requirements.txt
 
-Write-Host "[*] Starting Streamlit app (listening on 0.0.0.0:$Port)..."
-& streamlit run app.py --server.address 0.0.0.0 --server.port $Port --server.headless true
+Write-Host "[*] Starting Streamlit app (listening on 127.0.0.1:$Port)..."
+Write-Host "    Nginx should be running on port 80 to proxy traffic."
+& streamlit run app.py --server.address 127.0.0.1 --server.port $Port --server.headless true
