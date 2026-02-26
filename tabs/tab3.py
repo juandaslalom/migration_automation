@@ -286,15 +286,17 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                     "log_file": log_file_path
                 }
             
-            cli_command = f'sfrxcli -i --env {site_name}'
+            cli_command = f'"{os.path.join(cli_bin_path, "sfrxcli.exe")}" -i --env {site_name}'
             
-            log_lines.append(f"\nWorking directory: {cli_bin_path}")
+            log_lines.append(f"\nCLI bin directory: {cli_bin_path}")
             log_lines.append(f"Executing command: {cli_command}\n")
             log_lines.append(f"Commands to execute:\n{commands_input}\n")
             log_lines.append(f"=" * 50)
             log_lines.append(f"\nOutput:\n")
             
-            # Run the command with stdin piping from the CLI bin directory
+            # Run the command with stdin piping
+            # Use a local working directory since CMD does not support UNC paths as cwd
+            local_cwd = os.environ.get("SYSTEMROOT", r"E:\Windows")
             process = subprocess.Popen(
                 cli_command,
                 stdin=subprocess.PIPE,
@@ -302,7 +304,7 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                 stderr=subprocess.PIPE,
                 text=True,
                 shell=True,
-                cwd=cli_bin_path  # Set working directory to CLI bin
+                cwd=local_cwd
             )
             
             # Send commands to stdin
