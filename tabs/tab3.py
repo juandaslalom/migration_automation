@@ -287,37 +287,102 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                 }
             
             cli_command = f'"{os.path.join(cli_bin_path, "sfrxcli.exe")}" -i --env {site_name}'
-            
+
             log_lines.append(f"\nCLI bin directory: {cli_bin_path}")
             log_lines.append(f"Executing command: {cli_command}\n")
             log_lines.append(f"Commands to execute:\n{commands_input}\n")
             log_lines.append(f"=" * 50)
             log_lines.append(f"\nOutput:\n")
-            
-            # Run the command with stdin piping
-            # Use a local working directory since CMD does not support UNC paths as cwd
-            local_cwd = os.environ.get("SYSTEMROOT", r"E:\Windows")
-            process = subprocess.Popen(
-                cli_command,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                shell=True,
-                cwd=local_cwd
-            )
-            
-            # Send commands to stdin
-            stdout, stderr = process.communicate(input=commands_input, timeout=300)  # 5 min timeout
-            
-            # Combine stdout and stderr
-            full_output = stdout
-            if stderr:
-                full_output += f"\n\nERRORS:\n{stderr}"
-            
-            # Add output to log
-            log_lines.append(full_output)
-            log_lines.append(f"\n{'=' * 50}")
+
+            # Execute the CLI on the remote host via PowerShell Remoting (Invoke-Command).
+            # Build a ScriptBlock that changes to the CLI bin directory on the remote host and
+            # invokes `sfrxcli.exe` for each generated subcommand in non-interactive mode.
+            try:
+                # Derive remote host from the UNC base path (e.g. \\wa02835d\e$...)
+                remote_host = None
+                try:
+                    parts = base_path.lstrip('\\').split('\\')
+                    remote_host = parts[0] if parts else None
+                except Exception:
+                    remote_host = None
+
+                if not remote_host:
+                    raise RuntimeError("Could not determine remote host from base path")
+
+                # Convert UNC CLI path (\\host\e$\...) to the corresponding local path on the remote host (E:\...)
+                def _unc_to_local(p: str) -> str:
+                    if p.startswith('\\\\'):
+                        try:
+                            parts = p.lstrip('\\').split('\\')
+                            if len(parts) >= 2:
+                                share = parts[1]
+                                drive = share[0].upper() + ':'
+                                rest = parts[2:]
+                                if rest:
+                                    return os.path.join(drive + '\\', *rest)
+                                return drive + '\\'
+                        except Exception:
+                            return p
+                    return p
+
+                cli_bin_local = _unc_to_local(cli_bin_path)
+                remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
+
+                # Build invocation lines: for each command like 'ee -f "..." -e X' produce
+                # & 'E:\...\sfrxcli.exe' ee -f '...' -e X --env Westport
+                cmd_lines = [ln.strip() for ln in commands_input.splitlines() if ln.strip() and ln.strip().lower() != 'exit']
+                invocations = []
+                for ln in cmd_lines:
+                    # Escape single quotes for PowerShell single-quoted strings
+                    safe_exe = remote_exe.replace("'", "''")
+                    invocations.append(f"& '{safe_exe}' {ln} --env {site_name}")
+
+                # Create the remote script: change directory then run each invocation separated by semicolons
+                safe_cli_bin = cli_bin_local.replace("'", "''")
+                remote_script = f"cd '{safe_cli_bin}'; {'; '.join(invocations)}"
+
+                ps_cmd = f"Invoke-Command -ComputerName {remote_host} -ScriptBlock {{ {remote_script} }}"
+
+                # Execute PowerShell and capture output
+                ps_process = subprocess.run([
+                    "powershell",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    ps_cmd
+                ], capture_output=True, text=True, timeout=900)
+
+                full_output = ps_process.stdout
+                if ps_process.stderr:
+                    full_output += f"\n\nERRORS:\n{ps_process.stderr}"
+
+                log_lines.append(full_output)
+                log_lines.append(f"\n{'=' * 50}")
+
+            except Exception as e_remote:
+                # If remote execution fails, fall back to local execution (previous behavior)
+                log_lines.append(f"\n[WARN] Remote execution failed: {str(e_remote)}. Falling back to local execution.")
+                local_cwd = os.environ.get("SYSTEMROOT", r"E:\\Windows")
+                process = subprocess.Popen(
+                    cli_command,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    shell=True,
+                    cwd=local_cwd
+                )
+
+                # Send commands to stdin
+                stdout, stderr = process.communicate(input=commands_input, timeout=300)  # 5 min timeout
+                full_output = stdout
+                if stderr:
+                    full_output += f"\n\nERRORS:\n{stderr}"
+
+                # Add output to log
+                log_lines.append(full_output)
+                log_lines.append(f"\n{'=' * 50}")
             log_lines.append(f"Exit code: {process.returncode}")
             log_lines.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
