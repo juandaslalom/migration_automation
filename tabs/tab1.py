@@ -78,7 +78,8 @@ def render_tab1() -> None:
     # Remote credentials for PowerShell Remoting (Invoke-Command)
     st.subheader("Remote Credentials")
     st.markdown(
-        "Used by PowerShell Remoting (`Invoke-Command`) to execute commands on the selected servers (tabs 3, 4, 7, 8)."
+        "Used to connect to the selected servers via SMB (`net use`) and PowerShell Remoting. "
+        "Entered once here and reused by tabs 3, 4, 7, and 8."
     )
     col_user, col_pass = st.columns(2)
     with col_user:
