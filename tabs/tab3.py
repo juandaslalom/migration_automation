@@ -1,8 +1,29 @@
 import streamlit as st
 import os
 import subprocess
-import tempfile
 from pathlib import Path
+
+
+def _unc_to_local(p: str) -> str:
+    """Convert a UNC path (\\\\host\\share$\\rest) to a local drive path (X:\\rest)."""
+    if p.startswith('\\\\'):
+        try:
+            parts = p.lstrip('\\').split('\\')
+            if len(parts) >= 2:
+                drive = parts[1][0].upper() + ':'
+                rest = parts[2:]
+                return os.path.join(drive + '\\', *rest) if rest else drive + '\\'
+        except Exception:
+            pass
+    return p
+
+
+def _host_from_unc(p: str) -> str:
+    """Extract the hostname from a UNC path (\\\\hostname\\share$\\...)."""
+    try:
+        return p.lstrip('\\').split('\\')[0]
+    except Exception:
+        return ""
 
 
 def render_tab3() -> None:
@@ -60,7 +81,7 @@ def render_tab3() -> None:
             try:
                 # Build the migration path
                 base_path = _get_lower_base_path()
-                migration_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
+                migration_folder_path = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Migration", release_name)
                 
                 # Generate commands logic here
                 commands = generate_cli_commands(site_name, release_name, migration_folder_path, equipments_file, equipments_text)
@@ -103,7 +124,7 @@ def render_tab3() -> None:
                     if not base_path:
                         st.error("Please enter the lower server base path in Setup Steps (Tab 1)")
                         st.stop()
-                    migration_folder_path = os.path.join(base_path, "Applied Materials", "SmartFactoryRx_Westport", "Migration", release_name)
+                    migration_folder_path = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Migration", release_name)
                     
                     # Run the commands (cmd file is created and deleted automatically)
                     with st.spinner("Running CLI commands..." if not test_mode else "Simulating CLI commands..."):
@@ -125,35 +146,46 @@ def render_tab3() -> None:
 
 
 def generate_cli_commands(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str) -> str:
-    """Generate CLI export commands based on equipments list"""
-    
-    # Read equipments from file or text input
+    """Generate a preview of the actual Invoke-Command script that will run on the remote host."""
+
+    # Read equipments
     if equipments_file:
-        equipments_file.seek(0)  # Reset file pointer
+        equipments_file.seek(0)
         content = equipments_file.read().decode('utf-8')
         equipments = [line.strip() for line in content.split('\n') if line.strip()]
     else:
         equipments = [line.strip() for line in equipments_text.split('\n') if line.strip()]
-    
-    # Build commands
-    commands_list = []
-    
-    # Static command
-    commands_list.append(f"sfrxcli -i --env {site_name}")
-    commands_list.append("")  # Empty line for readability
-    
-    # Dynamic commands for each equipment
+
+    # Derive remote host and local CLI bin path from the migration folder UNC
+    remote_host = _host_from_unc(migration_folder_path)
+    cli_bin_local = _unc_to_local(
+        os.path.join(
+            os.path.dirname(os.path.dirname(migration_folder_path)),  # up 2 from Migration/release
+            f"SmartFactoryRx_{site_name}", "CLI", "bin"
+        )
+    )
+    # Use UNC base to build CLI bin path correctly
+    lower_base = st.session_state.get("lower_base_path", "").strip().rstrip("\\")
+    cli_bin_unc = os.path.join(lower_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
+    cli_bin_local = _unc_to_local(cli_bin_unc)
+    remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
+
+    lines = []
+    lines.append(f"# Runs on: {remote_host} via Invoke-Command")
+    lines.append(f"cd '{cli_bin_local}'")
+    lines.append("")
+
     for equipment in equipments:
-        # ee command
         json_file = os.path.join(migration_folder_path, f"{release_name}-{equipment}.json")
-        commands_list.append(f'ee -f "{json_file}" -e {equipment}')
-        
-        # es command
+        local_json = _unc_to_local(json_file)
         csv_file = os.path.join(migration_folder_path, f"{release_name}-{equipment}.csv")
-        commands_list.append(f'es -f "{csv_file}" -e {equipment}')
-        commands_list.append("")  # Empty line between equipment sets
-    
-    return '\n'.join(commands_list)
+        local_csv = _unc_to_local(csv_file)
+
+        lines.append(f"& '{remote_exe}' ee -f '{local_json}' -e {equipment} --env {site_name}")
+        lines.append(f"& '{remote_exe}' es -f '{local_csv}' -e {equipment} --env {site_name}")
+        lines.append("")
+
+    return '\n'.join(lines)
 
 
 def create_cmd_file(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str) -> str:
@@ -309,21 +341,6 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                 if not remote_host:
                     raise RuntimeError("Could not determine remote host from base path")
 
-                # Convert UNC CLI path (\\host\e$\...) to the corresponding local path on the remote host (E:\...)
-                def _unc_to_local(p: str) -> str:
-                    if p.startswith('\\\\'):
-                        try:
-                            parts = p.lstrip('\\').split('\\')
-                            if len(parts) >= 2:
-                                share = parts[1]
-                                drive = share[0].upper() + ':'
-                                rest = parts[2:]
-                                if rest:
-                                    return os.path.join(drive + '\\', *rest)
-                                return drive + '\\'
-                        except Exception:
-                            return p
-                    return p
 
                 cli_bin_local = _unc_to_local(cli_bin_path)
                 remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
