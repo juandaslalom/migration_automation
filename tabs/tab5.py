@@ -241,9 +241,11 @@ def render_tab5() -> None:
                     st.session_state["backup_results"] = backup_results
 
                     if backup_results:
-                        st.success("✅ Backups created successfully:\n\n" + "\n".join(backup_results))
+                        st.success("✅ Backups created successfully:")
+                        st.code("\n".join(backup_results), language="text")
                     if errors:
-                        st.error("⚠️ Some backups failed:\n\n" + "\n".join(errors))
+                        st.error("⚠️ Some backups failed:")
+                        st.code("\n".join(errors), language="text")
                             
                 except Exception as e:
                     st.error(f"Error creating backups: {str(e)}")
@@ -328,31 +330,22 @@ def render_tab5() -> None:
                         except Exception as e:
                             errors.append(f"{original_path}: {str(e)}")
                     
-                    # Build summary message
-                    summary = "## Transfer Summary\n\n"
-                    
-                    if "backup_results" in st.session_state and st.session_state["backup_results"]:
-                        summary += "### Directories renamed to backups:\n"
-                        for backup in st.session_state["backup_results"]:
-                            summary += f"- {backup}\n"
-                        summary += "\n"
-                    
-                    if transferred:
-                        summary += "### Directories transferred:\n"
-                        for item in transferred:
-                            summary += f"- {item}\n"
-                    
-                    if errors:
-                        summary += "\n### Errors:\n"
-                        for error in errors:
-                            summary += f"- {error}\n"
-                    
-                    st.markdown(summary)
-                    
                     if not errors:
                         st.success("✅ Transfer completed successfully!")
                     else:
                         st.warning("⚠️ Transfer completed with some errors")
+
+                    if "backup_results" in st.session_state and st.session_state["backup_results"]:
+                        st.markdown("**Directories renamed to backups:**")
+                        st.code("\n".join(st.session_state["backup_results"]), language="text")
+
+                    if transferred:
+                        st.markdown("**Directories transferred:**")
+                        st.code("\n".join(transferred), language="text")
+
+                    if errors:
+                        st.markdown("**Errors:**")
+                        st.code("\n".join(errors), language="text")
                         
                 except Exception as e:
                     st.error(f"Error during transfer: {str(e)}")
