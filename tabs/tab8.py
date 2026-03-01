@@ -1,6 +1,7 @@
 ﻿import streamlit as st
 import os
 import subprocess
+import time
 from datetime import datetime
 
 
@@ -193,81 +194,135 @@ def run_dashboard_cli_commands(site_name: str, static_unc: str, log_folder: str,
         if not remote_host:
             raise RuntimeError("Could not determine remote host from upper base path")
 
-        invocations = []
-        for st_type in setting_types:
-            safe_exe = remote_exe.replace("'", "''")
-            safe_dir = static_local.replace("'", "''")
-            invocations.append(f'& \'{safe_exe}\' ds --import --setting-type {st_type} --static-file-directory "{safe_dir}" --env {site_name}')
-
-        safe_cli_bin  = cli_bin_local.replace("'", "''")
-        remote_script = f"cd '{safe_cli_bin}'; {'; '.join(invocations)}"
-
         remote_username = st.session_state.get("remote_username", "").strip()
         remote_password = st.session_state.get("remote_password", "")
-        if remote_username and remote_password:
-            safe_user  = remote_username.replace("'", "''")
-            safe_pass  = remote_password.replace("'", "''")
-            cred_setup = (
-                f"$pass = ConvertTo-SecureString '{safe_pass}' -AsPlainText -Force; "
-                f"$cred = New-Object System.Management.Automation.PSCredential('{safe_user}', $pass); "
-            )
-            cred_param = "-Credential $cred "
-        else:
-            cred_setup = ""
-            cred_param = ""
+        if not remote_username or not remote_password:
+            return {"success": False, "output": "", "error": "Remote credentials required in Setup (Tab 1)", "log_file": log_file_path}
 
-        ps_cmd = f"{cred_setup}Invoke-Command -ComputerName {remote_host} {cred_param}-ScriptBlock {{ {remote_script} }}"
+        def _ps_sq(s):
+            return s.replace("'", "''")
+
+        # Build sfrxcli stdin commands (no --env in interactive mode)
+        cmds_for_stdin = []
+        for st_type in setting_types:
+            cmds_for_stdin.append(f'ds --import --setting-type {st_type} --static-file-directory "{static_local}"')
+        cmds_for_stdin.append('exit')
+
+        # Temp file paths
+        output_local = os.path.join(static_local, f"ds_import_output_{timestamp}.txt")
+        output_unc   = os.path.join(static_unc, f"ds_import_output_{timestamp}.txt")
+        script_local = os.path.join(static_local, f"run_ds_import_{timestamp}.ps1")
+        script_unc   = os.path.join(static_unc, f"run_ds_import_{timestamp}.ps1")
+
+        # Build PS1 script that pipes stdin to sfrxcli
+        ps1_lines = [
+            f"$exe = '{_ps_sq(remote_exe)}'",
+            f"$dir = '{_ps_sq(cli_bin_local)}'",
+            f"$outFile = '{_ps_sq(output_local)}'",
+            "try {",
+            "    $p = New-Object System.Diagnostics.Process",
+            "    $p.StartInfo.FileName = $exe",
+            f"    $p.StartInfo.Arguments = '-i --env {site_name}'",
+            "    $p.StartInfo.WorkingDirectory = $dir",
+            "    $p.StartInfo.UseShellExecute = $false",
+            "    $p.StartInfo.RedirectStandardInput = $true",
+            "    $p.StartInfo.RedirectStandardOutput = $true",
+            "    $p.StartInfo.RedirectStandardError = $true",
+            "    $p.Start() | Out-Null",
+            f"    $p.StandardInput.WriteLine('{_ps_sq(remote_username)}')",
+            f"    $p.StandardInput.WriteLine('{_ps_sq(remote_password)}')",
+        ]
+        for cmd in cmds_for_stdin:
+            ps1_lines.append(f"    $p.StandardInput.WriteLine('{_ps_sq(cmd)}')")
+        ps1_lines += [
+            "    $p.StandardInput.Close()",
+            "    $out = $p.StandardOutput.ReadToEnd()",
+            "    $err = $p.StandardError.ReadToEnd()",
+            "    $p.WaitForExit()",
+            '    ($out + "`n" + $err) | Out-File -FilePath $outFile -Encoding UTF8',
+            "} catch {",
+            '    "ERROR: $_" | Out-File -FilePath $outFile -Encoding UTF8',
+            "}",
+        ]
+        ps1_content = "\r\n".join(ps1_lines) + "\r\n"
+
+        # Write PS1 to server via UNC
+        with open(script_unc, 'w', encoding='utf-8') as f:
+            f.write(ps1_content)
+
+        task_name = f"SFRxDSImport_{timestamp}"
+        tr = f'powershell -NoProfile -ExecutionPolicy Bypass -File "{script_local}"'
 
         log_lines.append(f"\nCLI bin: {cli_bin_local}")
         log_lines.append(f"Static dir: {static_local}")
         log_lines.append("=" * 50 + "\nOutput:\n")
 
-        try:
-            ps_process = subprocess.run(
-                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
-                capture_output=True, text=True, timeout=900
-            )
-            full_output = ps_process.stdout
-            if ps_process.stderr:
-                full_output += f"\n\nERRORS:\n{ps_process.stderr}"
-            returncode = ps_process.returncode
+        # Create remote scheduled task
+        create_r = subprocess.run(
+            ["schtasks", "/create", "/s", remote_host,
+             "/u", remote_username, "/p", remote_password,
+             "/tn", task_name, "/tr", tr,
+             "/sc", "ONCE", "/st", "00:00",
+             "/ru", remote_username, "/rp", remote_password, "/f"],
+            capture_output=True, text=True, timeout=30
+        )
+        if create_r.returncode != 0:
+            raise RuntimeError(f"schtasks /create failed: {create_r.stdout.strip()} {create_r.stderr.strip()}")
 
-        except Exception as e_remote:
-            log_lines.append(f"\n[WARN] Remote execution failed: {str(e_remote)}. Falling back to local.\n")
-            commands_input = ""
-            for st_type in setting_types:
-                commands_input += f'ds --import --setting-type {st_type} --static-file-directory "{static_local}"\n'
-            commands_input += 'exit\n'
-            cli_command = f'"{os.path.join(cli_bin_local, "sfrxcli.exe")}" -i --env {site_name}'
-            process = subprocess.Popen(
-                cli_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, text=True, shell=True, cwd=cli_bin_local
-            )
-            stdout, stderr = process.communicate(input=commands_input, timeout=300)
-            full_output = stdout + (f"\n\nERRORS:\n{stderr}" if stderr else "")
-            returncode = process.returncode
+        # Run immediately
+        run_r = subprocess.run(
+            ["schtasks", "/run", "/s", remote_host,
+             "/u", remote_username, "/p", remote_password,
+             "/tn", task_name],
+            capture_output=True, text=True, timeout=30
+        )
+        if run_r.returncode != 0:
+            raise RuntimeError(f"schtasks /run failed: {run_r.stdout.strip()} {run_r.stderr.strip()}")
 
-        log_lines.append(full_output)
-        log_lines.append(f"\n{'=' * 50}")
-        log_lines.append(f"Exit code: {returncode}")
-        log_lines.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        log_lines.append(f"Task '{task_name}' started on {remote_host}. Waiting for completion...\n")
+
+        # Poll until task is no longer Running (up to 10 min)
+        for _ in range(120):
+            time.sleep(5)
+            q = subprocess.run(
+                ["schtasks", "/query", "/s", remote_host,
+                 "/u", remote_username, "/p", remote_password,
+                 "/tn", task_name, "/fo", "LIST"],
+                capture_output=True, text=True, timeout=30
+            )
+            if "Running" not in q.stdout:
+                break
+
+        # Read output via UNC
+        if os.path.exists(output_unc):
+            with open(output_unc, 'r', encoding='utf-8', errors='replace') as f:
+                full_output = f.read()
+        else:
+            full_output = "[No output file found - task may have failed to start]"
+
+        # Clean up
+        subprocess.run(
+            ["schtasks", "/delete", "/s", remote_host,
+             "/u", remote_username, "/p", remote_password,
+             "/tn", task_name, "/f"],
+            capture_output=True, text=True, timeout=30
+        )
+        for tmp in [script_unc, output_unc]:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+
+        log_lines += [full_output, f"\n{'=' * 50}",
+                      f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"]
         with open(log_file_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(log_lines))
 
-        if returncode == 0:
-            return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
-        else:
-            return {"success": False, "output": full_output, "error": "Command failed with non-zero exit code", "log_file": log_file_path}
+        success = bool(full_output.strip()) and not full_output.strip().startswith("ERROR")
+        return {"success": success, "output": full_output,
+                "error": None if success else "Check output for errors",
+                "log_file": log_file_path}
 
-    except subprocess.TimeoutExpired:
-        error_msg = "Command execution timed out"
-        log_lines.append(f"\n\nERROR: {error_msg}")
-        try:
-            with open(log_file_path, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(log_lines))
-        except Exception:
-            pass
-        return {"success": False, "output": '\n'.join(log_lines), "error": error_msg, "log_file": log_file_path or "N/A"}
     except Exception as e:
         error_msg = str(e)
         log_lines.append(f"\n\nEXCEPTION: {error_msg}")
