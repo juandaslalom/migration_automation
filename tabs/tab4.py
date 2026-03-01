@@ -155,8 +155,24 @@ def render_tab4() -> None:
                         script_bytes = remote_script.encode('utf-16-le')
                         script_b64 = base64.b64encode(script_bytes).decode('ascii')
 
+                        # Build optional PSCredential block if credentials are set in Tab 1
+                        remote_username = st.session_state.get("remote_username", "").strip()
+                        remote_password = st.session_state.get("remote_password", "")
+                        if remote_username and remote_password:
+                            safe_user = remote_username.replace("'", "''")
+                            safe_pass = remote_password.replace("'", "''")
+                            cred_setup = (
+                                f"$pass = ConvertTo-SecureString '{safe_pass}' -AsPlainText -Force; "
+                                f"$cred = New-Object System.Management.Automation.PSCredential('{safe_user}', $pass); "
+                            )
+                            cred_param = "-Credential $cred "
+                        else:
+                            cred_setup = ""
+                            cred_param = ""
+
                         ps_cmd = (
-                            f"Invoke-Command -ComputerName {lower_hostname} "
+                            f"{cred_setup}"
+                            f"Invoke-Command -ComputerName {lower_hostname} {cred_param}"
                             f"-ScriptBlock {{ "
                             f"$script = [System.Text.Encoding]::Unicode.GetString("
                             f"[System.Convert]::FromBase64String('{script_b64}')); "

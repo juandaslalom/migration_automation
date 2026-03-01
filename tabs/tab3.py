@@ -358,7 +358,22 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                 safe_cli_bin = cli_bin_local.replace("'", "''")
                 remote_script = f"cd '{safe_cli_bin}'; {'; '.join(invocations)}"
 
-                ps_cmd = f"Invoke-Command -ComputerName {remote_host} -ScriptBlock {{ {remote_script} }}"
+                # Build optional PSCredential block if credentials are set in Tab 1
+                remote_username = st.session_state.get("remote_username", "").strip()
+                remote_password = st.session_state.get("remote_password", "")
+                if remote_username and remote_password:
+                    safe_user = remote_username.replace("'", "''")
+                    safe_pass = remote_password.replace("'", "''")
+                    cred_setup = (
+                        f"$pass = ConvertTo-SecureString '{safe_pass}' -AsPlainText -Force; "
+                        f"$cred = New-Object System.Management.Automation.PSCredential('{safe_user}', $pass); "
+                    )
+                    cred_param = "-Credential $cred "
+                else:
+                    cred_setup = ""
+                    cred_param = ""
+
+                ps_cmd = f"{cred_setup}Invoke-Command -ComputerName {remote_host} {cred_param}-ScriptBlock {{ {remote_script} }}"
 
                 # Execute PowerShell and capture output
                 ps_process = subprocess.run([

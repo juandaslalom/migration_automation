@@ -75,6 +75,27 @@ def render_tab1() -> None:
 
     st.markdown("---")
 
+    # Remote credentials for PowerShell Remoting (Invoke-Command)
+    st.subheader("Remote Credentials")
+    st.markdown(
+        "Used by PowerShell Remoting (`Invoke-Command`) to execute commands on the selected servers (tabs 3, 4, 7, 8)."
+    )
+    col_user, col_pass = st.columns(2)
+    with col_user:
+        st.text_input(
+            "Remote Username",
+            placeholder="DOMAIN\\\\username or username",
+            key="remote_username",
+        )
+    with col_pass:
+        st.text_input(
+            "Remote Password",
+            type="password",
+            key="remote_password",
+        )
+
+    st.markdown("---")
+
     # File upload sections
     st.subheader("File Uploads")
 
