@@ -84,8 +84,8 @@ def render_tab6() -> None:
                     st.error("❌ Please enter remote credentials in Tab 1 (Remote Credentials section).")
                     st.stop()
 
-                e3_client_service = f"SFRx_{site_name}_E3Client"
-                portal_service = f"SFRx_{site_name}_Portal"
+                e3_client_service = f"SFRx_{site_name.upper()}_E3Client"
+                portal_service = f"SFRx_{site_name.upper()}_Portal"
 
                 # Establish authenticated SMB session so sc can authenticate
                 ipc_share = f"\\\\{upper_hostname}\\IPC$"
