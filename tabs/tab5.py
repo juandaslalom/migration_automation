@@ -48,19 +48,7 @@ def render_tab5() -> None:
     else:
         st.warning("Lower server path is empty. Please fill site name, lower server base path, and release name in Tab 1.")
 
-    use_custom_lower = st.checkbox("Use custom lower server path", key="use_custom_lower_path")
-
-    if use_custom_lower:
-        custom_lower_path = st.text_input(
-            "Custom lower server path (where the migration folder is currently located)",
-            key="custom_lower_server_path",
-            placeholder=r"\\wa01928q\e$\Applied Materials\SmartFactoryRx_<Site>\Migration\<Release Name>",
-            value=default_lower_path,
-            label_visibility="collapsed",
-        )
-        st.session_state["lower_server_path"] = custom_lower_path.strip()
-    else:
-        st.session_state["lower_server_path"] = default_lower_path
+    st.session_state["lower_server_path"] = default_lower_path
     
     st.markdown("---")
     
@@ -70,29 +58,11 @@ def render_tab5() -> None:
     # Get site name from session state to build default path
     upper_base = st.session_state.get("upper_base_path", "").strip()
     base_for_env = upper_base if upper_base else "\\\\<upper-server>\\share$"
-    default_env_path = f"{base_for_env}\\Applied Materials\\SmartFactoryRx_{site_name}-env"
-    
+    default_env_path = f"{base_for_env}\\Applied Materials\\SmartFactoryRx_{site_name}"
+
     st.info(f"📍 Migration folder will be copied to:\n\n`{default_env_path}\\Migration`")
-    
-    # Option to use custom path
-    use_custom = st.checkbox("Use custom upper server path", key="use_custom_env_path")
-    
-    if use_custom:
-        custom_env_path = st.text_input(
-            "Custom upper server path",
-            key="custom_env_server_path",
-            placeholder=r"\\upper-server\share$\\Applied Materials\\SmartFactoryRx_<Site>-env",
-            value=default_env_path,
-            label_visibility="collapsed"
-        )
-        # Store the custom path in session state
-        if custom_env_path:
-            st.session_state["env_server_path"] = custom_env_path
-        else:
-            st.session_state["env_server_path"] = default_env_path
-    else:
-        # Use default path
-        st.session_state["env_server_path"] = default_env_path
+
+    st.session_state["env_server_path"] = default_env_path
     
     st.markdown("---")
     
