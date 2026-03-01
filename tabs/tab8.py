@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 def _unc_to_local(p: str) -> str:
-    """Convert \\\\hostname\\e$\\foo\\bar â†’ E:\\foo\\bar"""
+    """Convert \\\\hostname\\e$\\foo\\bar → E:\\foo\\bar"""
     if p.startswith('\\\\'):
         try:
             parts = p.lstrip('\\').split('\\')
@@ -48,7 +48,7 @@ def render_tab8() -> None:
 
         1. Click **Generate Commands** to create the Dashboard CLI import commands.
         2. Review the generated commands.
-        3. Click **â–¶ï¸ Run Dashboard CLI Commands** to execute them automatically.
+        3. Click **▶️ Run Dashboard CLI Commands** to execute them automatically.
 
         **Commands will import:**
         - Process Map domain settings
@@ -96,14 +96,14 @@ def render_tab8() -> None:
         
         st.markdown("---")
 
-        test_mode = st.checkbox("ðŸ§ª Test Mode (simulate CLI execution without sfrxcli)", value=False, key="dashboard_cli_test_mode")
+        test_mode = st.checkbox("🧪 Test Mode (simulate CLI execution without sfrxcli)", value=False, key="dashboard_cli_test_mode")
         if test_mode:
-            st.info("â„¹ï¸ Test mode enabled - will simulate CLI execution for testing purposes")
+            st.info("ℹ️ Test mode enabled - will simulate CLI execution for testing purposes")
 
         # Run Dashboard CLI Commands button (centered)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("â–¶ï¸ Run Dashboard CLI Commands", type="primary", use_container_width=True):
+            if st.button("▶️ Run Dashboard CLI Commands", type="primary", use_container_width=True):
                 try:
                     site_name = st.session_state.get("site_name", "")
                     test_mode = st.session_state.get("dashboard_cli_test_mode", False)
@@ -120,13 +120,13 @@ def render_tab8() -> None:
                         result = run_dashboard_cli_commands(site_name, base_root, log_folder_path, test_mode)
                     
                     if result["success"]:
-                        st.success(f"âœ… Commands executed successfully!\n\nLog file: {result['log_file']}")
+                        st.success(f"✅ Commands executed successfully!\n\nLog file: {result['log_file']}")
                     else:
-                        st.error(f"âŒ Error: {result['error']}")
+                        st.error(f"❌ Error: {result['error']}")
                     
                     # Always show output in terminal-like interface
                     if result["output"]:
-                        st.markdown("### ðŸ’» Command Output")
+                        st.markdown("### 💻 Command Output")
                         st.code(result["output"], language="bash")
                     
                 except Exception as e:
@@ -219,7 +219,7 @@ def run_dashboard_cli_commands(site_name: str, base_drive: str, log_folder_path:
                 "",
             ]
             for st_type in setting_types:
-                simulated.append(f"[SIMULATED] ds --import --setting-type {st_type} â†’ OK")
+                simulated.append(f"[SIMULATED] ds --import --setting-type {st_type} → OK")
             simulated.append("\nAll dashboard imports simulated successfully.")
             full_output = "\n".join(simulated)
             log_lines.append(full_output)

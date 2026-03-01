@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 def _unc_to_local(p: str) -> str:
-    """Convert \\\\hostname\\e$\\foo\\bar â†’ E:\\foo\\bar"""
+    """Convert \\\\hostname\\e$\\foo\\bar → E:\\foo\\bar"""
     if p.startswith('\\\\'):
         try:
             parts = p.lstrip('\\').split('\\')
@@ -28,7 +28,7 @@ def _host_from_unc(p: str) -> str:
 
 
 def render_tab7() -> None:
-    st.subheader("Portal Dashboard Migration â€“ CLI Import")
+    st.subheader("Portal Dashboard Migration – CLI Import")
 
     site_name = st.session_state.get("site_name", "")
     upper_base = st.session_state.get("upper_base_path", "").strip()
@@ -46,7 +46,7 @@ def render_tab7() -> None:
 
         1. Click **Generate Commands** to create the CLI import commands.
         2. Review the generated commands.
-        3. Click **â–¶ï¸ Run CLI Import Commands** to execute them automatically.
+        3. Click **▶️ Run CLI Import Commands** to execute them automatically.
         """
     )
 
@@ -92,13 +92,13 @@ def render_tab7() -> None:
 
         st.markdown("---")
 
-        test_mode = st.checkbox("ðŸ§ª Test Mode (simulate CLI execution without sfrxcli)", value=False, key="cli_import_test_mode")
+        test_mode = st.checkbox("🧪 Test Mode (simulate CLI execution without sfrxcli)", value=False, key="cli_import_test_mode")
         if test_mode:
-            st.info("â„¹ï¸ Test mode enabled - will simulate CLI execution for testing purposes")
+            st.info("ℹ️ Test mode enabled - will simulate CLI execution for testing purposes")
 
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("â–¶ï¸ Run CLI Import Commands", type="primary", use_container_width=True):
+            if st.button("▶️ Run CLI Import Commands", type="primary", use_container_width=True):
                 try:
                     site_name = st.session_state.get("site_name", "")
                     release_name = st.session_state.get("release_name", "")
@@ -122,13 +122,13 @@ def render_tab7() -> None:
                         )
 
                     if result["success"]:
-                        st.success(f"âœ… Commands executed successfully!")
+                        st.success(f"✅ Commands executed successfully!")
                         st.caption(f"Log file: {result['log_file']}")
                     else:
-                        st.error(f"âŒ Error: {result['error']}")
+                        st.error(f"❌ Error: {result['error']}")
 
                     if result["output"]:
-                        st.markdown("### ðŸ’» Command Output")
+                        st.markdown("### 💻 Command Output")
                         st.code(result["output"], language="text")
 
                 except Exception as e:
