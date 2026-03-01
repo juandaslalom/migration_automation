@@ -28,7 +28,7 @@ def _host_from_unc(p: str) -> str:
 
 
 def render_tab7() -> None:
-    st.subheader("Portal Dashboard Migration – CLI Import")
+    st.subheader("Portal Dashboard Migration - CLI Import")
 
     site_name = st.session_state.get("site_name", "")
     upper_base = st.session_state.get("upper_base_path", "").strip()
@@ -204,20 +204,6 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
         cli_bin_local = _unc_to_local(cli_bin_unc)
         remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
 
-        # Build non-interactive invocations
-        invocations = []
-        for equipment in equipments:
-            json_local = os.path.join(migration_local, f"{release_name}-{equipment}.json")
-            csv_local  = os.path.join(migration_local, f"{release_name}-{equipment}.csv")
-            safe_exe   = remote_exe.replace("'", "''")
-            safe_json  = json_local.replace("'", "''")
-            safe_csv   = csv_local.replace("'", "''")
-            invocations.append(f"& '{safe_exe}' ie -if '{safe_json}' --comment '{release_name}' --env {site_name}")
-            invocations.append(f"& '{safe_exe}' is -if '{safe_csv}' --comment '{release_name}' --env {site_name}")
-
-        safe_cli_bin = cli_bin_local.replace("'", "''")
-        remote_script = f"cd '{safe_cli_bin}'; " + "; ".join(invocations)
-
         log_lines.append(f"\nRemote host: {remote_host}")
         log_lines.append(f"CLI bin (local to server): {cli_bin_local}")
         log_lines.append(f"Migration path (local to server): {migration_local}")
@@ -231,8 +217,8 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
                 "",
             ]
             for equipment in equipments:
-                simulated.append(f"[SIMULATED] ie: {release_name}-{equipment}.json â†’ OK")
-                simulated.append(f"[SIMULATED] is: {release_name}-{equipment}.csv â†’ OK")
+                simulated.append(f"[SIMULATED] ie: {release_name}-{equipment}.json -> OK")
+                simulated.append(f"[SIMULATED] is: {release_name}-{equipment}.csv -> OK")
             simulated.append("\nAll imports simulated successfully.")
             full_output = "\n".join(simulated)
             log_lines.append(full_output)
@@ -244,37 +230,79 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
                 pass
             return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
 
-        # Production: build PSCredential + Invoke-Command
+        # ── Production: WinRM-free via net use + wmic ──────────────────────────
+        # Invoke-Command (WinRM) is not used — it may hang if WinRM is unavailable.
+        # Approach:
+        #  1. Authenticate to E$ share with net use
+        #  2. Write a .bat into the migration folder via UNC
+        #  3. Launch it on the remote server via wmic process call create (DCOM)
+        #  4. Poll the output file until the done-sentinel appears (max 10 min)
+        #  5. Read the output, clean up temp files, disconnect share
         remote_username = st.session_state.get("remote_username", "").strip()
         remote_password = st.session_state.get("remote_password", "")
-        if remote_username and remote_password:
-            safe_user = remote_username.replace("'", "''")
-            safe_pass = remote_password.replace("'", "''")
-            cred_setup = (
-                f"$pass = ConvertTo-SecureString '{safe_pass}' -AsPlainText -Force; "
-                f"$cred = New-Object System.Management.Automation.PSCredential('{safe_user}', $pass); "
-            )
-            cred_param = "-Credential $cred "
+
+        share_path = f"\\\\{remote_host}\\e$"
+        net_use_cmd = ["net", "use", share_path]
+        if remote_username:
+            net_use_cmd += [f"/user:{remote_username}", remote_password or ""]
+        subprocess.run(net_use_cmd, capture_output=True, text=True, timeout=30)
+
+        bat_unc  = os.path.join(migration_folder_path, f"{release_name}_cli_import_{timestamp}.bat")
+        out_unc  = os.path.join(migration_folder_path, f"{release_name}_cli_import_{timestamp}.txt")
+        bat_local = _unc_to_local(bat_unc)   # path as seen by the remote server
+        out_local = _unc_to_local(out_unc)
+        sentinel  = "SFRXCLI_IMPORT_DONE"
+
+        bat_lines = ["@echo off", f'cd /d "{cli_bin_local}"']
+        for equipment in equipments:
+            json_local = os.path.join(migration_local, f"{release_name}-{equipment}.json")
+            csv_local  = os.path.join(migration_local, f"{release_name}-{equipment}.csv")
+            bat_lines.append(f'"{remote_exe}" ie -if "{json_local}" --comment "{release_name}" --env {site_name} >> "{out_local}" 2>&1')
+            bat_lines.append(f'"{remote_exe}" is -if "{csv_local}" --comment "{release_name}" --env {site_name} >> "{out_local}" 2>&1')
+        bat_lines.append(f'echo {sentinel} >> "{out_local}"')
+
+        with open(bat_unc, 'w', encoding='utf-8') as f:
+            f.write("\r\n".join(bat_lines))
+
+        wmic_args = ["wmic", f"/node:{remote_host}"]
+        if remote_username:
+            wmic_args += [f"/user:{remote_username}", f"/password:{remote_password}"]
+        wmic_args += ["process", "call", "create", f'cmd /c ""{bat_local}""']
+
+        wmic_result = subprocess.run(wmic_args, capture_output=True, text=True, timeout=30)
+        log_lines.append(f"wmic launch: {(wmic_result.stdout + wmic_result.stderr).strip()}")
+
+        if wmic_result.returncode != 0:
+            raise RuntimeError(f"wmic failed to launch remote process: {wmic_result.stderr or wmic_result.stdout}")
+
+        # Poll for sentinel in the output file (max 10 minutes)
+        max_wait, poll_interval, elapsed = 600, 5, 0
+        full_output = ""
+        while elapsed < max_wait:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            if os.path.exists(out_unc):
+                try:
+                    full_output = open(out_unc, 'r', encoding='utf-8', errors='replace').read()
+                    if sentinel in full_output:
+                        full_output = full_output.replace(sentinel, "").strip()
+                        break
+                except Exception:
+                    pass
         else:
-            cred_setup = ""
-            cred_param = ""
+            raise TimeoutError(f"Remote execution did not complete within {max_wait}s")
 
-        ps_cmd = f"{cred_setup}Invoke-Command -ComputerName {remote_host} {cred_param}-ScriptBlock {{ {remote_script} }}"
-
-        ps_process = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
-            capture_output=True, text=True, timeout=900
-        )
-
-        full_output = ps_process.stdout
-        if ps_process.stderr:
-            full_output += f"\n\nERRORS:\n{ps_process.stderr}"
+        for tmp in (bat_unc, out_unc):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+        subprocess.run(["net", "use", share_path, "/delete", "/yes"],
+                       capture_output=True, text=True, timeout=15)
 
         log_lines.append(full_output)
         log_lines.append(f"\n{'=' * 50}")
-        log_lines.append(f"Exit code: {ps_process.returncode}")
         log_lines.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
         log_content = "\n".join(log_lines)
         try:
             with open(log_file_path, 'w', encoding='utf-8') as f:
@@ -282,16 +310,10 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
         except Exception:
             pass
 
-        success = ps_process.returncode == 0
-        return {
-            "success": success,
-            "output": full_output,
-            "error": None if success else (ps_process.stderr or "Non-zero exit code"),
-            "log_file": log_file_path,
-        }
+        return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
 
-    except subprocess.TimeoutExpired:
-        error_msg = "Command execution timed out (15 minutes)"
+    except TimeoutError as e:
+        error_msg = str(e)
         log_lines.append(f"\nTIMEOUT: {error_msg}")
         try:
             with open(log_file_path, 'w', encoding='utf-8') as f:

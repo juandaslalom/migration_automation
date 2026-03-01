@@ -1,6 +1,7 @@
 ﻿import streamlit as st
 import os
 import subprocess
+import time
 from datetime import datetime
 
 
@@ -195,17 +196,6 @@ def run_dashboard_cli_commands(site_name: str, base_drive: str, log_folder_path:
         static_local = _unc_to_local(static_unc)
 
         setting_types = ["ProcessMap", "EquipmentHealth", "EquipmentView", "Operation"]
-        invocations = []
-        for st_type in setting_types:
-            safe_exe  = remote_exe.replace("'", "''")
-            safe_dir  = static_local.replace("'", "''")
-            invocations.append(
-                f"& '{safe_exe}' ds --import --setting-type {st_type} "
-                f"--static-file-directory '{safe_dir}' --env {site_name}"
-            )
-
-        safe_cli_bin  = cli_bin_local.replace("'", "''")
-        remote_script = f"cd '{safe_cli_bin}'; " + "; ".join(invocations)
 
         log_lines.append(f"\nRemote host: {remote_host}")
         log_lines.append(f"CLI bin (local to server): {cli_bin_local}")
@@ -219,7 +209,7 @@ def run_dashboard_cli_commands(site_name: str, base_drive: str, log_folder_path:
                 "",
             ]
             for st_type in setting_types:
-                simulated.append(f"[SIMULATED] ds --import --setting-type {st_type} → OK")
+                simulated.append(f"[SIMULATED] ds --import --setting-type {st_type} -> OK")
             simulated.append("\nAll dashboard imports simulated successfully.")
             full_output = "\n".join(simulated)
             log_lines.append(full_output)
@@ -232,37 +222,73 @@ def run_dashboard_cli_commands(site_name: str, base_drive: str, log_folder_path:
                 pass
             return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
 
-        # Production: PSCredential + Invoke-Command
+        # ── Production: WinRM-free via net use + wmic ──────────────────────────
         remote_username = st.session_state.get("remote_username", "").strip()
         remote_password = st.session_state.get("remote_password", "")
-        if remote_username and remote_password:
-            safe_user = remote_username.replace("'", "''")
-            safe_pass = remote_password.replace("'", "''")
-            cred_setup = (
-                f"$pass = ConvertTo-SecureString '{safe_pass}' -AsPlainText -Force; "
-                f"$cred = New-Object System.Management.Automation.PSCredential('{safe_user}', $pass); "
+
+        share_path = f"\\\\{remote_host}\\e$"
+        net_use_cmd = ["net", "use", share_path]
+        if remote_username:
+            net_use_cmd += [f"/user:{remote_username}", remote_password or ""]
+        subprocess.run(net_use_cmd, capture_output=True, text=True, timeout=30)
+
+        bat_unc  = os.path.join(log_folder_path, f"dashboard_cli_{timestamp}.bat")
+        out_unc  = os.path.join(log_folder_path, f"dashboard_cli_{timestamp}.txt")
+        bat_local = _unc_to_local(bat_unc)
+        out_local = _unc_to_local(out_unc)
+        sentinel  = "SFRXCLI_DASHBOARD_DONE"
+
+        bat_lines = ["@echo off", f'cd /d "{cli_bin_local}"']
+        for st_type in setting_types:
+            bat_lines.append(
+                f'"{remote_exe}" ds --import --setting-type {st_type}'
+                f' --static-file-directory "{static_local}" --env {site_name}'
+                f' >> "{out_local}" 2>&1'
             )
-            cred_param = "-Credential $cred "
+        bat_lines.append(f'echo {sentinel} >> "{out_local}"')
+
+        with open(bat_unc, 'w', encoding='utf-8') as f:
+            f.write("\r\n".join(bat_lines))
+
+        wmic_args = ["wmic", f"/node:{remote_host}"]
+        if remote_username:
+            wmic_args += [f"/user:{remote_username}", f"/password:{remote_password}"]
+        wmic_args += ["process", "call", "create", f'cmd /c ""{bat_local}""']
+
+        wmic_result = subprocess.run(wmic_args, capture_output=True, text=True, timeout=30)
+        log_lines.append(f"wmic launch: {(wmic_result.stdout + wmic_result.stderr).strip()}")
+
+        if wmic_result.returncode != 0:
+            raise RuntimeError(f"wmic failed to launch remote process: {wmic_result.stderr or wmic_result.stdout}")
+
+        # Poll for sentinel (max 10 minutes)
+        max_wait, poll_interval, elapsed = 600, 5, 0
+        full_output = ""
+        while elapsed < max_wait:
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+            if os.path.exists(out_unc):
+                try:
+                    full_output = open(out_unc, 'r', encoding='utf-8', errors='replace').read()
+                    if sentinel in full_output:
+                        full_output = full_output.replace(sentinel, "").strip()
+                        break
+                except Exception:
+                    pass
         else:
-            cred_setup = ""
-            cred_param = ""
+            raise TimeoutError(f"Remote execution did not complete within {max_wait}s")
 
-        ps_cmd = f"{cred_setup}Invoke-Command -ComputerName {remote_host} {cred_param}-ScriptBlock {{ {remote_script} }}"
-
-        ps_process = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
-            capture_output=True, text=True, timeout=900
-        )
-
-        full_output = ps_process.stdout
-        if ps_process.stderr:
-            full_output += f"\n\nERRORS:\n{ps_process.stderr}"
+        for tmp in (bat_unc, out_unc):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+        subprocess.run(["net", "use", share_path, "/delete", "/yes"],
+                       capture_output=True, text=True, timeout=15)
 
         log_lines.append(full_output)
         log_lines.append(f"\n{'=' * 50}")
-        log_lines.append(f"Exit code: {ps_process.returncode}")
         log_lines.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
         log_content = "\n".join(log_lines)
         try:
             os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
@@ -271,16 +297,10 @@ def run_dashboard_cli_commands(site_name: str, base_drive: str, log_folder_path:
         except Exception:
             pass
 
-        success = ps_process.returncode == 0
-        return {
-            "success": success,
-            "output": full_output,
-            "error": None if success else (ps_process.stderr or "Non-zero exit code"),
-            "log_file": log_file_path,
-        }
+        return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
 
-    except subprocess.TimeoutExpired:
-        error_msg = "Command execution timed out (15 minutes)"
+    except TimeoutError as e:
+        error_msg = str(e)
         log_lines.append(f"\nTIMEOUT: {error_msg}")
         try:
             os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
