@@ -1,12 +1,11 @@
 ﻿import streamlit as st
 import os
 import subprocess
-import time
 from datetime import datetime
 
 
 def _unc_to_local(p: str) -> str:
-    """Convert \\\\hostname\\e$\\foo\\bar → E:\\foo\\bar"""
+    """Convert \\\\hostname\\e$\\foo\\bar to E:\\foo\\bar"""
     if p.startswith('\\\\'):
         try:
             parts = p.lstrip('\\').split('\\')
@@ -46,7 +45,7 @@ def render_tab7() -> None:
 
         1. Click **Generate Commands** to create the CLI import commands.
         2. Review the generated commands.
-        3. Click **▶️ Run CLI Import Commands** to execute them automatically.
+        3. Click **Run CLI Import Commands** to execute them automatically.
         """
     )
 
@@ -54,7 +53,6 @@ def render_tab7() -> None:
         upper_base_val = st.session_state.get("upper_base_path", "").strip()
         return upper_base_val.rstrip("\\/") if upper_base_val else ""
 
-    # Generate Commands button
     if st.button("Generate Commands", key="generate_cli_import_commands"):
         site_name = st.session_state.get("site_name", "")
         release_name = st.session_state.get("release_name", "")
@@ -80,7 +78,6 @@ def render_tab7() -> None:
             except Exception as e:
                 st.error(f"Error generating commands: {str(e)}")
 
-    # Display commands text box
     if 'cli_import_commands' in st.session_state and st.session_state['cli_import_commands']:
         st.text_area(
             "Generated Commands:",
@@ -92,13 +89,13 @@ def render_tab7() -> None:
 
         st.markdown("---")
 
-        test_mode = st.checkbox("🧪 Test Mode (simulate CLI execution without sfrxcli)", value=False, key="cli_import_test_mode")
+        test_mode = st.checkbox("Test Mode (simulate CLI execution without sfrxcli)", value=False, key="cli_import_test_mode")
         if test_mode:
-            st.info("ℹ️ Test mode enabled - will simulate CLI execution for testing purposes")
+            st.info("Test mode enabled - will simulate CLI execution for testing purposes")
 
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("▶️ Run CLI Import Commands", type="primary", use_container_width=True):
+            if st.button("Run CLI Import Commands", type="primary", use_container_width=True):
                 try:
                     site_name = st.session_state.get("site_name", "")
                     release_name = st.session_state.get("release_name", "")
@@ -122,13 +119,13 @@ def render_tab7() -> None:
                         )
 
                     if result["success"]:
-                        st.success(f"✅ Commands executed successfully!")
+                        st.success("Commands executed successfully!")
                         st.caption(f"Log file: {result['log_file']}")
                     else:
-                        st.error(f"❌ Error: {result['error']}")
+                        st.error(f"Error: {result['error']}")
 
                     if result["output"]:
-                        st.markdown("### 💻 Command Output")
+                        st.markdown("### Command Output")
                         st.code(result["output"], language="text")
 
                 except Exception as e:
@@ -136,200 +133,182 @@ def render_tab7() -> None:
 
 
 def generate_cli_import_commands(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str) -> str:
-    """Generate CLI import commands preview (non-interactive Invoke-Command format)."""
-    equipments = []
+    """Generate CLI import commands preview (mirrors tab3 generate_cli_commands)."""
     if equipments_file:
-        content = equipments_file.getvalue().decode("utf-8")
-        equipments = [line.strip() for line in content.splitlines() if line.strip()]
-    elif equipments_text:
-        equipments = [line.strip() for line in equipments_text.splitlines() if line.strip()]
+        equipments_file.seek(0)
+        content = equipments_file.read().decode('utf-8')
+        equipments = [l.strip() for l in content.splitlines() if l.strip()]
+    else:
+        equipments = [l.strip() for l in equipments_text.splitlines() if l.strip()]
 
-    remote_host = _host_from_unc(migration_folder_path)
-    if not remote_host:
-        remote_host = "<upper-server>"
+    upper_base = st.session_state.get("upper_base_path", "").strip().rstrip("\\")
+    cli_bin_unc = os.path.join(upper_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
+    cli_bin_local = _unc_to_local(cli_bin_unc)
+    remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
+    remote_host = _host_from_unc(upper_base) or "<upper-server>"
+    migration_local = _unc_to_local(migration_folder_path)
 
-    cli_bin_local = _unc_to_local(
-        os.path.join(
-            migration_folder_path.split("Migration")[0].rstrip("\\"),
-            "..\\CLI\\bin"
-        )
-    )
-
-    lines = [f"# Runs on: {remote_host} via Invoke-Command (non-interactive)", ""]
+    lines = [f"# Runs on: {remote_host} via Invoke-Command", f"cd '{cli_bin_local}'", ""]
     for equipment in equipments:
-        json_file = os.path.join(migration_folder_path, f"{release_name}-{equipment}.json")
-        csv_file  = os.path.join(migration_folder_path, f"{release_name}-{equipment}.csv")
-        json_local = _unc_to_local(json_file)
-        csv_local  = _unc_to_local(csv_file)
-        lines.append(f"& '<cli_bin>\\sfrxcli.exe' ie -if \"{json_local}\" --comment \"{release_name}\" --env {site_name}")
-        lines.append(f"& '<cli_bin>\\sfrxcli.exe' is -if \"{csv_local}\" --comment \"{release_name}\" --env {site_name}")
+        json_local = os.path.join(migration_local, f"{release_name}-{equipment}.json")
+        csv_local  = os.path.join(migration_local, f"{release_name}-{equipment}.csv")
+        lines.append(f"& '{remote_exe}' ie -if '{json_local}' --comment '{release_name}' --env {site_name}")
+        lines.append(f"& '{remote_exe}' is -if '{csv_local}' --comment '{release_name}' --env {site_name}")
         lines.append("")
-
     return "\n".join(lines)
 
 
 def run_cli_import_commands(site_name: str, release_name: str, migration_folder_path: str, equipments_file, equipments_text: str, test_mode: bool = False) -> dict:
-    """Run CLI import commands on the upper server via non-interactive Invoke-Command."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = os.path.join(migration_folder_path, f"{release_name}_cli_import_log_{timestamp}.log")
-
-    log_lines = [
-        "=== CLI Import Commands Execution Log ===",
-        f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"Site: {site_name}",
-        f"Release: {release_name}",
-        f"Mode: {'TEST (Simulated)' if test_mode else 'PRODUCTION'}",
-        "=" * 50,
-    ]
+    """Run CLI import commands on the upper server (mirrors tab3 run_cli_commands)."""
+    import re, time
 
     try:
-        # Build equipment list
-        equipments = []
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file_path = os.path.join(migration_folder_path, f"{release_name}_cli_import_log_{timestamp}.log")
+
         if equipments_file:
-            content = equipments_file.getvalue().decode("utf-8")
+            equipments_file.seek(0)
+            content = equipments_file.read().decode('utf-8')
             equipments = [l.strip() for l in content.splitlines() if l.strip()]
-        elif equipments_text:
+        else:
             equipments = [l.strip() for l in equipments_text.splitlines() if l.strip()]
 
-        # Derive remote host and local paths on the upper server
-        remote_host = _host_from_unc(migration_folder_path)
-        if not remote_host:
-            raise RuntimeError("Could not determine upper server hostname from base path")
-
+        upper_base = st.session_state.get("upper_base_path", "").strip().rstrip("\\")
         migration_local = _unc_to_local(migration_folder_path)
 
-        # Derive CLI bin path (local to upper server)
-        upper_base_unc = st.session_state.get("upper_base_path", "").strip().rstrip("\\")
-        cli_bin_unc = os.path.join(upper_base_unc, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
-        cli_bin_local = _unc_to_local(cli_bin_unc)
-        remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
+        commands_list = []
+        for equipment in equipments:
+            json_file = os.path.join(migration_local, f"{release_name}-{equipment}.json")
+            csv_file  = os.path.join(migration_local, f"{release_name}-{equipment}.csv")
+            commands_list.append(f'ie -if "{json_file}" --comment "{release_name}"')
+            commands_list.append(f'is -if "{csv_file}" --comment "{release_name}"')
+        commands_list.append('exit')
+        commands_input = '\n'.join(commands_list)
 
-        log_lines.append(f"\nRemote host: {remote_host}")
-        log_lines.append(f"CLI bin (local to server): {cli_bin_local}")
-        log_lines.append(f"Migration path (local to server): {migration_local}")
-        log_lines.append("=" * 50)
+        log_lines = [
+            "=== CLI Import Commands Execution Log ===",
+            f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Site: {site_name}",
+            f"Release: {release_name}",
+            f"Mode: {'TEST (Simulated)' if test_mode else 'PRODUCTION'}",
+            "=" * 50,
+        ]
 
         if test_mode:
-            # Simulate output
+            log_lines.append(f"\n[TEST MODE] Commands to execute:\n{commands_input}\n")
             simulated = [
-                f"SmartFactoryRx CLI - TEST MODE",
-                f"Would execute on: {remote_host}",
+                "SmartFactoryRx CLI v2.5.1",
+                f"Connecting to environment: {site_name}...",
+                f"Connected successfully to {site_name}",
                 "",
             ]
             for equipment in equipments:
-                simulated.append(f"[SIMULATED] ie: {release_name}-{equipment}.json -> OK")
-                simulated.append(f"[SIMULATED] is: {release_name}-{equipment}.csv -> OK")
-            simulated.append("\nAll imports simulated successfully.")
-            full_output = "\n".join(simulated)
+                simulated.append(f"Importing: {equipment}")
+                simulated.append(f"  ie ({release_name}-{equipment}.json) ... Done")
+                simulated.append(f"  is ({release_name}-{equipment}.csv) ... Done")
+                simulated.append("")
+            simulated.append("All imports completed successfully!")
+            simulated.append("Session closed.")
+            full_output = '\n'.join(simulated)
             log_lines.append(full_output)
-            log_content = "\n".join(log_lines)
-            try:
-                with open(log_file_path, 'w', encoding='utf-8') as f:
-                    f.write(log_content)
-            except Exception:
-                pass
+            log_lines.append(f"\n{'=' * 50}")
+            log_lines.append("[TEST MODE] Simulated exit code: 0")
+            log_lines.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            with open(log_file_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(log_lines))
             return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
 
-        # ── Production: WinRM-free via net use + wmic ──────────────────────────
-        # Invoke-Command (WinRM) is not used — it may hang if WinRM is unavailable.
-        # Approach:
-        #  1. Authenticate to E$ share with net use
-        #  2. Write a .bat into the migration folder via UNC
-        #  3. Launch it on the remote server via wmic process call create (DCOM)
-        #  4. Poll the output file until the done-sentinel appears (max 10 min)
-        #  5. Read the output, clean up temp files, disconnect share
+        if not upper_base:
+            return {"success": False, "output": "", "error": "Upper server base path is required in Setup (Tab 1)", "log_file": log_file_path}
+
+        cli_bin_unc   = os.path.join(upper_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
+        cli_bin_local = _unc_to_local(cli_bin_unc)
+        remote_exe    = os.path.join(cli_bin_local, "sfrxcli.exe")
+        remote_host   = _host_from_unc(upper_base)
+
+        if not remote_host:
+            raise RuntimeError("Could not determine remote host from upper base path")
+
+        log_lines.append(f"\nCLI bin directory: {cli_bin_local}")
+        log_lines.append(f"Commands to execute:\n{commands_input}\n")
+        log_lines.append("=" * 50)
+        log_lines.append("\nOutput:\n")
+
+        cmd_lines = [ln.strip() for ln in commands_input.splitlines() if ln.strip() and ln.strip().lower() != 'exit']
+        invocations = []
+        for ln in cmd_lines:
+            safe_exe = remote_exe.replace("'", "''")
+            invocations.append(f"& '{safe_exe}' {ln} --env {site_name}")
+
+        safe_cli_bin  = cli_bin_local.replace("'", "''")
+        remote_script = f"cd '{safe_cli_bin}'; {'; '.join(invocations)}"
+
         remote_username = st.session_state.get("remote_username", "").strip()
         remote_password = st.session_state.get("remote_password", "")
-
-        share_path = f"\\\\{remote_host}\\e$"
-        net_use_cmd = ["net", "use", share_path]
-        if remote_username:
-            net_use_cmd += [f"/user:{remote_username}", remote_password or ""]
-        subprocess.run(net_use_cmd, capture_output=True, text=True, timeout=30)
-
-        bat_unc  = os.path.join(migration_folder_path, f"{release_name}_cli_import_{timestamp}.bat")
-        out_unc  = os.path.join(migration_folder_path, f"{release_name}_cli_import_{timestamp}.txt")
-        bat_local = _unc_to_local(bat_unc)   # path as seen by the remote server
-        out_local = _unc_to_local(out_unc)
-        sentinel  = "SFRXCLI_IMPORT_DONE"
-
-        bat_lines = ["@echo off", f'cd /d "{cli_bin_local}"']
-        for equipment in equipments:
-            json_local = os.path.join(migration_local, f"{release_name}-{equipment}.json")
-            csv_local  = os.path.join(migration_local, f"{release_name}-{equipment}.csv")
-            bat_lines.append(f'"{remote_exe}" ie -if "{json_local}" --comment "{release_name}" --env {site_name} >> "{out_local}" 2>&1')
-            bat_lines.append(f'"{remote_exe}" is -if "{csv_local}" --comment "{release_name}" --env {site_name} >> "{out_local}" 2>&1')
-        bat_lines.append(f'echo {sentinel} >> "{out_local}"')
-
-        with open(bat_unc, 'w', encoding='utf-8') as f:
-            f.write("\r\n".join(bat_lines))
-
-        wmic_args = ["wmic", f"/node:{remote_host}"]
-        if remote_username:
-            wmic_args += [f"/user:{remote_username}", f"/password:{remote_password}"]
-        wmic_args += ["process", "call", "create", f'cmd /c ""{bat_local}""']
-
-        wmic_result = subprocess.run(wmic_args, capture_output=True, text=True, timeout=30)
-        log_lines.append(f"wmic launch: {(wmic_result.stdout + wmic_result.stderr).strip()}")
-
-        if wmic_result.returncode != 0:
-            raise RuntimeError(f"wmic failed to launch remote process: {wmic_result.stderr or wmic_result.stdout}")
-
-        # Poll for sentinel in the output file (max 10 minutes)
-        max_wait, poll_interval, elapsed = 600, 5, 0
-        full_output = ""
-        while elapsed < max_wait:
-            time.sleep(poll_interval)
-            elapsed += poll_interval
-            if os.path.exists(out_unc):
-                try:
-                    full_output = open(out_unc, 'r', encoding='utf-8', errors='replace').read()
-                    if sentinel in full_output:
-                        full_output = full_output.replace(sentinel, "").strip()
-                        break
-                except Exception:
-                    pass
+        if remote_username and remote_password:
+            safe_user  = remote_username.replace("'", "''")
+            safe_pass  = remote_password.replace("'", "''")
+            cred_setup = (
+                f"$pass = ConvertTo-SecureString '{safe_pass}' -AsPlainText -Force; "
+                f"$cred = New-Object System.Management.Automation.PSCredential('{safe_user}', $pass); "
+            )
+            cred_param = "-Credential $cred "
         else:
-            raise TimeoutError(f"Remote execution did not complete within {max_wait}s")
+            cred_setup = ""
+            cred_param = ""
 
-        for tmp in (bat_unc, out_unc):
-            try:
-                os.remove(tmp)
-            except Exception:
-                pass
-        subprocess.run(["net", "use", share_path, "/delete", "/yes"],
-                       capture_output=True, text=True, timeout=15)
+        ps_cmd = f"{cred_setup}Invoke-Command -ComputerName {remote_host} {cred_param}-ScriptBlock {{ {remote_script} }}"
 
-        log_lines.append(full_output)
-        log_lines.append(f"\n{'=' * 50}")
+        try:
+            ps_process = subprocess.run(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+                capture_output=True, text=True, timeout=900
+            )
+            full_output = ps_process.stdout
+            if ps_process.stderr:
+                full_output += f"\n\nERRORS:\n{ps_process.stderr}"
+            log_lines.append(full_output)
+            log_lines.append(f"\n{'=' * 50}")
+            returncode = ps_process.returncode
+
+        except Exception as e_remote:
+            log_lines.append(f"\n[WARN] Remote execution failed: {str(e_remote)}. Falling back to local.")
+            cli_command = f'"{os.path.join(cli_bin_local, "sfrxcli.exe")}" -i --env {site_name}'
+            process = subprocess.Popen(
+                cli_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, shell=True, cwd=cli_bin_local
+            )
+            stdout, stderr = process.communicate(input=commands_input, timeout=300)
+            full_output = stdout + (f"\n\nERRORS:\n{stderr}" if stderr else "")
+            log_lines.append(full_output)
+            log_lines.append(f"\n{'=' * 50}")
+            returncode = process.returncode
+
+        log_lines.append(f"Exit code: {returncode}")
         log_lines.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        log_content = "\n".join(log_lines)
+        with open(log_file_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(log_lines))
+
+        if returncode == 0:
+            return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
+        else:
+            return {"success": False, "output": full_output, "error": "Command failed with non-zero exit code", "log_file": log_file_path}
+
+    except subprocess.TimeoutExpired:
+        error_msg = "Command execution timed out"
+        log_lines.append(f"\n\nERROR: {error_msg}")
         try:
             with open(log_file_path, 'w', encoding='utf-8') as f:
-                f.write(log_content)
+                f.write('\n'.join(log_lines))
         except Exception:
             pass
-
-        return {"success": True, "output": full_output, "error": None, "log_file": log_file_path}
-
-    except TimeoutError as e:
-        error_msg = str(e)
-        log_lines.append(f"\nTIMEOUT: {error_msg}")
-        try:
-            with open(log_file_path, 'w', encoding='utf-8') as f:
-                f.write("\n".join(log_lines))
-        except Exception:
-            pass
-        return {"success": False, "output": "\n".join(log_lines), "error": error_msg, "log_file": log_file_path}
-
+        return {"success": False, "output": '\n'.join(log_lines), "error": error_msg, "log_file": log_file_path}
     except Exception as e:
         error_msg = str(e)
-        log_lines.append(f"\nEXCEPTION: {error_msg}")
+        log_lines.append(f"\n\nEXCEPTION: {error_msg}")
         try:
             with open(log_file_path, 'w', encoding='utf-8') as f:
-                f.write("\n".join(log_lines))
+                f.write('\n'.join(log_lines))
         except Exception:
             pass
-        return {"success": False, "output": "\n".join(log_lines), "error": error_msg, "log_file": log_file_path}
-
-
+        return {"success": False, "output": '\n'.join(log_lines), "error": error_msg, "log_file": log_file_path if 'log_file_path' in locals() else "N/A"}
