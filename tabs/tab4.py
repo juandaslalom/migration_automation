@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import shutil
 import subprocess
+from datetime import datetime
 
 
 def _local_to_unc(local_path: str, hostname: str) -> str:
@@ -125,6 +126,7 @@ def render_tab4() -> None:
             # Copy files over the UNC share
             results = []
             errors = []
+            copied_local_paths = []
             with st.spinner("Copying files..."):
                 try:
                     os.makedirs(unc_migration_path, exist_ok=True)
@@ -133,7 +135,7 @@ def render_tab4() -> None:
                     st.error(f"❌ Could not create migration folder: {e}")
                     st.stop()
 
-                for src_unc, dst_unc, rel in copy_plan:
+                for src_local, (src_unc, dst_unc, rel) in zip(folder_list, copy_plan):
                     try:
                         if os.path.isdir(src_unc):
                             if os.path.exists(dst_unc):
@@ -146,9 +148,19 @@ def render_tab4() -> None:
                             errors.append(f"NOT FOUND: {src_unc}")
                             continue
                         results.append(f"OK: {rel}")
+                        copied_local_paths.append(src_local)
                     except Exception as e:
                         errors.append(f"FAIL: {rel} → {e}")
 
+                # Write migrated_paths_*.txt so Tab 5 can read original source paths
+                if copied_local_paths:
+                    try:
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        log_file = os.path.join(unc_migration_path, f"migrated_paths_{timestamp}.txt")
+                        with open(log_file, "w", encoding="utf-8") as lf:
+                            lf.write("\n".join(copied_local_paths))
+                    except Exception as e:
+                        errors.append(f"WARNING: Could not write migrated_paths log: {e}")
             # Disconnect the share
             subprocess.run(["net", "use", unc_share, "/delete", "/yes"], capture_output=True)
 

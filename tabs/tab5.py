@@ -131,64 +131,58 @@ def render_tab5() -> None:
                             break
                     
                     if not txt_file:
-                        st.error("Could not find migrated_paths_*.txt file in migration folder")
+                        # No log file — fall back to listing subfolders/files in the migration folder
+                        st.warning("⚠️ No migrated_paths_*.txt found. Re-run Tab 4 to regenerate it. Falling back to scanning the migration folder structure.")
+                        paths_from_txt = []
+                        for item in os.listdir(migration_path):
+                            full = os.path.join(migration_path, item)
+                            if not item.endswith(".txt") and not item.endswith(".xlsx") and not item.endswith(".xls"):
+                                paths_from_txt.append(full)
                     else:
                         # Read paths from txt file
                         with open(txt_file, 'r', encoding='utf-8') as f:
                             paths_from_txt = [line.strip() for line in f if line.strip()]
-                        
-                        directories_needing_backup = []
-                        
-                        # Process each path from txt file
-                        for original_path in paths_from_txt:
-                            try:
-                                # Extract the relative part after the base path
-                                # Example: C:\Applied Materials\SmartFactoryRx_WESTPORT\Portal\data\static\dmx
-                                # We need to extract: Portal\data\static\dmx
-                                
-                                # Find the common base pattern (e.g., "SmartFactoryRx_WESTPORT" or similar)
-                                # Split by backslashes
-                                parts = original_path.split('\\')
-                                
-                                # Find index where the meaningful path starts
-                                # Look for patterns like "Portal", "Guardbands", etc.
-                                meaningful_start = -1
+
+                    directories_needing_backup = []
+
+                    # Process each path to find what already exists on the upper server
+                    for original_path in paths_from_txt:
+                        try:
+                            parts = original_path.split('\\')
+
+                            # Find where the meaningful relative path starts
+                            meaningful_start = -1
+                            for i, part in enumerate(parts):
+                                if part in ['Portal', 'Guardbands', 'data', 'static']:
+                                    meaningful_start = i
+                                    break
+
+                            if meaningful_start == -1:
                                 for i, part in enumerate(parts):
-                                    if part in ['Portal', 'Guardbands', 'data', 'static']:
-                                        meaningful_start = i
+                                    if 'SmartFactoryRx' in part:
+                                        meaningful_start = i + 1
                                         break
-                                
-                                if meaningful_start == -1:
-                                    # If no known pattern found, take everything after "SmartFactoryRx_*"
-                                    for i, part in enumerate(parts):
-                                        if 'SmartFactoryRx' in part:
-                                            meaningful_start = i + 1
-                                            break
-                                
-                                if meaningful_start != -1:
-                                    rel_path = '\\'.join(parts[meaningful_start:])
-                                    
-                                    # Build target path in env server
-                                    target_path = os.path.join(env_path, rel_path)
-                                    
-                                    # Check if target exists
-                                    if os.path.exists(target_path):
-                                        directories_needing_backup.append(rel_path)
-                                        
-                            except Exception as e:
-                                st.warning(f"Could not process path: {original_path} - {str(e)}")
-                                continue
-                        
-                        # Store in session state
-                        st.session_state["directories_needing_backup"] = directories_needing_backup
-                        st.session_state["env_base_path"] = env_path
-                        st.session_state["txt_paths"] = paths_from_txt
-                        
-                        if directories_needing_backup:
-                            backup_text = "This directories need backup:\n" + "\n".join(directories_needing_backup)
-                            st.session_state["backup_list_text"] = backup_text
-                        else:
-                            st.session_state["backup_list_text"] = "No directories need backup."
+
+                            if meaningful_start != -1:
+                                rel_path = '\\'.join(parts[meaningful_start:])
+                                target_path = os.path.join(env_path, rel_path)
+                                if os.path.exists(target_path):
+                                    directories_needing_backup.append(rel_path)
+
+                        except Exception as e:
+                            st.warning(f"Could not process path: {original_path} - {str(e)}")
+                            continue
+
+                    # Store in session state
+                    st.session_state["directories_needing_backup"] = directories_needing_backup
+                    st.session_state["env_base_path"] = env_path
+                    st.session_state["txt_paths"] = paths_from_txt
+
+                    if directories_needing_backup:
+                        backup_text = "This directories need backup:\n" + "\n".join(directories_needing_backup)
+                        st.session_state["backup_list_text"] = backup_text
+                    else:
+                        st.session_state["backup_list_text"] = "No directories need backup."
                         
                 except Exception as e:
                     st.error(f"Error checking for backups: {str(e)}")
