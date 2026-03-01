@@ -359,6 +359,7 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
 
                 log_lines.append(full_output)
                 log_lines.append(f"\n{'=' * 50}")
+                returncode = ps_process.returncode
 
             except Exception as e_remote:
                 # If remote execution fails, fall back to local execution (previous behavior)
@@ -383,7 +384,10 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                 # Add output to log
                 log_lines.append(full_output)
                 log_lines.append(f"\n{'=' * 50}")
-            log_lines.append(f"Exit code: {process.returncode}")
+                returncode = process.returncode
+
+            # Unified post-execution logging and return
+            log_lines.append(f"Exit code: {returncode}")
             log_lines.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             
             # Write log file
@@ -391,7 +395,7 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
             with open(log_file_path, 'w', encoding='utf-8') as log_file:
                 log_file.write(log_content)
             
-            if process.returncode == 0:
+            if returncode == 0:
                 return {
                     "success": True, 
                     "output": full_output, 
@@ -402,13 +406,16 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                 return {
                     "success": False, 
                     "output": full_output, 
-                    "error": stderr or "Command failed with non-zero exit code",
+                    "error": "Command failed with non-zero exit code",
                     "log_file": log_file_path
                 }
             
     except subprocess.TimeoutExpired:
-        process.kill()
-        error_msg = "Command execution timed out (5 minutes)"
+        error_msg = "Command execution timed out"
+        try:
+            process.kill()
+        except Exception:
+            pass
         log_lines.append(f"\n\nERROR: {error_msg}")
         with open(log_file_path, 'w', encoding='utf-8') as log_file:
             log_file.write('\n'.join(log_lines))
