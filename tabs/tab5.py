@@ -212,42 +212,38 @@ def render_tab5() -> None:
                 try:
                     # Extract date from migration folder name
                     migration_folder_name = os.path.basename(migration_path)
-                    date_match = re.search(r'(\d{8})$', migration_folder_name)
+                    date_match = re.search(r'(\d{8})', migration_folder_name)
+                    backup_date = date_match.group(1) if date_match else datetime.now().strftime("%Y%m%d")
+                    backup_results = []
+                    errors = []
                     
-                    if not date_match:
-                        st.error("Could not extract date from migration folder name")
-                    else:
-                        backup_date = date_match.group(1)
-                        backup_results = []
-                        errors = []
-                        
-                        with st.spinner("Creating backups..."):
-                            for rel_path in directories_needing_backup:
-                                try:
-                                    target_path = os.path.join(env_base_path, rel_path)
-                                    backup_path = f"{target_path}-BKP-{backup_date}"
-                                    
-                                    # Handle if backup already exists
-                                    counter = 2
-                                    original_backup_path = backup_path
-                                    while os.path.exists(backup_path):
-                                        backup_path = f"{original_backup_path}-{counter}"
-                                        counter += 1
-                                    
-                                    # Rename to backup
-                                    os.rename(target_path, backup_path)
-                                    backup_results.append(f"{rel_path} → {backup_path}")
-                                    
-                                except Exception as e:
-                                    errors.append(f"{rel_path}: {str(e)}")
-                        
-                        # Store backup results for transfer step
-                        st.session_state["backup_results"] = backup_results
-                        
-                        if backup_results:
-                            st.success("✅ Backups created successfully:\n\n" + "\n".join(backup_results))
-                        if errors:
-                            st.error("⚠️ Some backups failed:\n\n" + "\n".join(errors))
+                    with st.spinner("Creating backups..."):
+                        for rel_path in directories_needing_backup:
+                            try:
+                                target_path = os.path.join(env_base_path, rel_path)
+                                backup_path = f"{target_path}-BKP-{backup_date}"
+
+                                # Handle if backup already exists
+                                counter = 2
+                                original_backup_path = backup_path
+                                while os.path.exists(backup_path):
+                                    backup_path = f"{original_backup_path}-{counter}"
+                                    counter += 1
+
+                                # Rename to backup
+                                os.rename(target_path, backup_path)
+                                backup_results.append(f"{rel_path} → {backup_path}")
+
+                            except Exception as e:
+                                errors.append(f"{rel_path}: {str(e)}")
+
+                    # Store backup results for transfer step
+                    st.session_state["backup_results"] = backup_results
+
+                    if backup_results:
+                        st.success("✅ Backups created successfully:\n\n" + "\n".join(backup_results))
+                    if errors:
+                        st.error("⚠️ Some backups failed:\n\n" + "\n".join(errors))
                             
                 except Exception as e:
                     st.error(f"Error creating backups: {str(e)}")
