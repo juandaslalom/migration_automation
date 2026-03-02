@@ -50,7 +50,13 @@ def render_tab8() -> None:
         - Static files directory: `{static_path}`
 
         1. Click **Generate Dashboard Commands** to preview the import commands.
-        2. Click **Run Dashboard CLI Import** to execute them on the upper server.
+        2. Review the generated commands below.
+        3. RDP into the upper server and open a **Command Prompt**.
+        4. Navigate to the CLI directory:
+           ```
+           cd "{_unc_to_local(cli_path)}"
+           ```
+        5. Copy and paste each command one at a time. Your **username and password** will be prompted by the CLI.
         """
     )
 
@@ -82,41 +88,43 @@ def render_tab8() -> None:
             key="dashboard_cli_commands_display"
         )
 
-        st.markdown("---")
+        st.info("Copy the commands above and paste them one by one in the CLI on the upper server.")
 
-        test_mode = st.checkbox("Test Mode (simulate CLI execution without sfrxcli)", value=False, key="dashboard_cli_test_mode")
-        if test_mode:
-            st.info("Test mode enabled - will simulate CLI execution")
-
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("Run Dashboard CLI Import", type="primary", use_container_width=True):
-                try:
-                    site_name = st.session_state.get("site_name", "")
-                    test_mode = st.session_state.get("dashboard_cli_test_mode", False)
-                    base_path = _get_base_path()
-                    if not base_path:
-                        st.error("Please select the upper server in Setup Steps (Tab 1)")
-                        st.stop()
-
-                    static_unc = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Portal", "data", "static")
-                    log_folder = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Migration")
-
-                    with st.spinner("Running dashboard CLI import..." if not test_mode else "Simulating dashboard CLI import..."):
-                        result = run_dashboard_cli_commands(site_name, static_unc, log_folder, test_mode)
-
-                    if result["success"]:
-                        st.success("Dashboard import completed successfully!")
-                        st.caption(f"Log file: {result['log_file']}")
-                    else:
-                        st.error(f"Error: {result['error']}")
-
-                    if result["output"]:
-                        st.markdown("### Command Output")
-                        st.code(result["output"], language="text")
-
-                except Exception as e:
-                    st.error(f"Error running dashboard import: {str(e)}")
+        # --- Automated execution disabled (sfrxcli hangs with stdin redirect) ---
+        # TODO: Re-enable once a reliable remote execution method is confirmed.
+        # test_mode = st.checkbox("Test Mode (simulate CLI execution without sfrxcli)", value=False, key="dashboard_cli_test_mode")
+        # if test_mode:
+        #     st.info("Test mode enabled - will simulate CLI execution")
+        #
+        # col1, col2, col3 = st.columns([1, 2, 1])
+        # with col2:
+        #     if st.button("Run Dashboard CLI Import", type="primary", use_container_width=True):
+        #         try:
+        #             site_name = st.session_state.get("site_name", "")
+        #             test_mode = st.session_state.get("dashboard_cli_test_mode", False)
+        #             base_path = _get_base_path()
+        #             if not base_path:
+        #                 st.error("Please select the upper server in Setup Steps (Tab 1)")
+        #                 st.stop()
+        #
+        #             static_unc = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Portal", "data", "static")
+        #             log_folder = os.path.join(base_path, "Applied Materials", f"SmartFactoryRx_{site_name}", "Migration")
+        #
+        #             with st.spinner("Running dashboard CLI import..." if not test_mode else "Simulating dashboard CLI import..."):
+        #                 result = run_dashboard_cli_commands(site_name, static_unc, log_folder, test_mode)
+        #
+        #             if result["success"]:
+        #                 st.success("Dashboard import completed successfully!")
+        #                 st.caption(f"Log file: {result['log_file']}")
+        #             else:
+        #                 st.error(f"Error: {result['error']}")
+        #
+        #             if result["output"]:
+        #                 st.markdown("### Command Output")
+        #                 st.code(result["output"], language="text")
+        #
+        #         except Exception as e:
+        #             st.error(f"Error running dashboard import: {str(e)}")
 
 
 def generate_dashboard_commands(site_name: str, static_unc: str) -> str:
