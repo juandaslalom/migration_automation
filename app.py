@@ -129,7 +129,7 @@ with st.sidebar:
     st.markdown("---")
 
 # Create tabs for Setup Steps
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["Setup Steps", "E3 Export", "CLI Export", "Folder Migration", "Import Files", "E3 Import", "CLI Import", "Dashboard CLI Import", "Guardbands Import", "Service Restarts"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs(["1. Setup Steps", "2. E3 Export", "3. CLI Export", "4. Folder Migration", "5. Import Files", "6. E3 Import", "7. CLI Import", "8. Dashboard CLI Import", "9. Guardbands Import", "10. Service Restarts"])
 
 with tab1:
     render_tab1()
@@ -157,9 +157,6 @@ with tab8:
 
 with tab9:
     render_tab9()
-
-with tab10:
-    render_tab10()
 
 with tab10:
     render_tab10()
