@@ -2,7 +2,7 @@
 import os
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def _unc_to_local(p: str) -> str:
@@ -257,12 +257,25 @@ def run_dashboard_cli_commands(site_name: str, static_unc: str, log_folder: str,
         log_lines.append(f"Static dir: {static_local}")
         log_lines.append("=" * 50 + "\nOutput:\n")
 
+        # Establish IPC$ connection to remote host (avoids "logon session" errors)
+        ipc_r = subprocess.run(
+            ["net", "use", f"\\\\{remote_host}\\IPC$",
+             f"/user:{remote_username}", remote_password],
+            capture_output=True, text=True, timeout=30
+        )
+        # IPC$ may already be connected — ignore "duplicate" errors
+        if ipc_r.returncode != 0 and "1219" not in ipc_r.stderr and "1219" not in ipc_r.stdout:
+            log_lines.append(f"IPC$ warning: {ipc_r.stdout.strip()} {ipc_r.stderr.strip()}")
+
+        # Use a start time 2 minutes in the future (schtasks rejects past times)
+        future_st = (datetime.now() + timedelta(minutes=2)).strftime("%H:%M")
+
         # Create remote scheduled task
         create_r = subprocess.run(
             ["schtasks", "/create", "/s", remote_host,
              "/u", remote_username, "/p", remote_password,
              "/tn", task_name, "/tr", tr,
-             "/sc", "ONCE", "/st", "00:00",
+             "/sc", "ONCE", "/st", future_st,
              "/ru", remote_username, "/rp", remote_password, "/f"],
             capture_output=True, text=True, timeout=30
         )
