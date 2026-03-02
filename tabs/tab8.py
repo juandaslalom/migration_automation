@@ -270,13 +270,13 @@ def run_dashboard_cli_commands(site_name: str, static_unc: str, log_folder: str,
         # Use a start time 2 minutes in the future (schtasks rejects past times)
         future_st = (datetime.now() + timedelta(minutes=2)).strftime("%H:%M")
 
-        # Create remote scheduled task
+        # Create remote scheduled task (run as SYSTEM to avoid logon session errors)
         create_r = subprocess.run(
             ["schtasks", "/create", "/s", remote_host,
              "/u", remote_username, "/p", remote_password,
              "/tn", task_name, "/tr", tr,
              "/sc", "ONCE", "/st", future_st,
-             "/ru", remote_username, "/rp", remote_password, "/f"],
+             "/ru", "SYSTEM", "/f"],
             capture_output=True, text=True, timeout=30
         )
         if create_r.returncode != 0:
