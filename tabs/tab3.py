@@ -33,7 +33,7 @@ def render_tab3() -> None:
 
     # Instructions and effective CLI path (shown upfront)
     site_name = st.session_state.get("site_name", "")
-    lower_base = st.session_state.get("lower_base_path", "").strip()
+    lower_base = (st.session_state.get("lower_base_path") or "").strip()
     base_for_display = lower_base if lower_base else r"\\<lower-server>\share$"
 
     if site_name:
@@ -54,7 +54,7 @@ def render_tab3() -> None:
 
     def _get_lower_base_path() -> str:
         """Resolve lower server base path (UNC)."""
-        lower_base = st.session_state.get("lower_base_path", "").strip()
+        lower_base = (st.session_state.get("lower_base_path") or "").strip()
         if not lower_base:
             return ""
         return lower_base.rstrip("\\/")
@@ -64,7 +64,7 @@ def render_tab3() -> None:
         # Get data from session state
         site_name = st.session_state.get("site_name", "")
         release_name = st.session_state.get("release_name", "")
-        lower_base = st.session_state.get("lower_base_path", "").strip()
+        lower_base = (st.session_state.get("lower_base_path") or "").strip()
         equipments_file = st.session_state.get("equipments_file")
         equipments_text = st.session_state.get("equipments_text", "")
         
@@ -114,7 +114,7 @@ def render_tab3() -> None:
                 try:
                     site_name = st.session_state.get("site_name", "")
                     release_name = st.session_state.get("release_name", "")
-                    lower_base = st.session_state.get("lower_base_path", "").strip()
+                    lower_base = (st.session_state.get("lower_base_path") or "").strip()
                     equipments_file = st.session_state.get("equipments_file")
                     equipments_text = st.session_state.get("equipments_text", "")
                     test_mode = st.session_state.get("cli_test_mode", False)
@@ -165,7 +165,7 @@ def generate_cli_commands(site_name: str, release_name: str, migration_folder_pa
         )
     )
     # Use UNC base to build CLI bin path correctly
-    lower_base = st.session_state.get("lower_base_path", "").strip().rstrip("\\")
+    lower_base = (st.session_state.get("lower_base_path") or "").strip().rstrip("\\")
     cli_bin_unc = os.path.join(lower_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
     cli_bin_local = _unc_to_local(cli_bin_unc)
     remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
@@ -293,7 +293,7 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
         else:
             # REAL CLI execution
             # Build CLI bin directory path (lower server base path)
-            base_override = st.session_state.get("lower_base_path", "").strip()
+            base_override = (st.session_state.get("lower_base_path") or "").strip()
             if base_override:
                 base_path = base_override.rstrip("\\/")
             else:
@@ -359,7 +359,7 @@ def run_cli_commands(site_name: str, release_name: str, migration_folder_path: s
                 remote_script = f"cd '{safe_cli_bin}'; {'; '.join(invocations)}"
 
                 # Build optional PSCredential block if credentials are set in Tab 1
-                remote_username = st.session_state.get("remote_username", "").strip()
+                remote_username = (st.session_state.get("remote_username") or "").strip()
                 remote_password = st.session_state.get("remote_password", "")
                 if remote_username and remote_password:
                     safe_user = remote_username.replace("'", "''")

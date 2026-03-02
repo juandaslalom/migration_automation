@@ -56,10 +56,10 @@ def render_tab4() -> None:
     with col2:
         if st.button("📋 Copy Folders to Migration", type="primary", use_container_width=True):
             folders = st.session_state.get("folders_to_migrate", "")
-            lower_base = st.session_state.get("lower_base_path", "").strip()
-            release_name = st.session_state.get("release_name", "").strip()
-            site_name = st.session_state.get("site_name", "").strip()
-            remote_username = st.session_state.get("remote_username", "").strip()
+            lower_base = (st.session_state.get("lower_base_path") or "").strip()
+            release_name = (st.session_state.get("release_name") or "").strip()
+            site_name = (st.session_state.get("site_name") or "").strip()
+            remote_username = (st.session_state.get("remote_username") or "").strip()
             remote_password = st.session_state.get("remote_password", "")
 
             if not folders:

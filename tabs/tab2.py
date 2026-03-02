@@ -36,9 +36,9 @@ def render_tab2() -> None:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("💾 Save File to Migration Folder", type="primary", use_container_width=True):
-            site_name = st.session_state.get("site_name", "").strip()
-            lower_base = st.session_state.get("lower_base_path", "").strip()
-            release_name = st.session_state.get("release_name", "").strip()
+            site_name = (st.session_state.get("site_name") or "").strip()
+            lower_base = (st.session_state.get("lower_base_path") or "").strip()
+            release_name = (st.session_state.get("release_name") or "").strip()
             e3pkg_file_from_state = st.session_state.get("e3pkg_file")
 
             if not site_name:

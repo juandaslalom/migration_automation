@@ -31,7 +31,7 @@ def render_tab8() -> None:
     st.subheader("Dashboard CLI Import")
 
     site_name = st.session_state.get("site_name", "")
-    upper_base = st.session_state.get("upper_base_path", "").strip()
+    upper_base = (st.session_state.get("upper_base_path") or "").strip()
     base_for_display = upper_base if upper_base else r"\\<upper-server>\e$"
 
     if site_name:
@@ -61,7 +61,7 @@ def render_tab8() -> None:
     )
 
     def _get_base_path() -> str:
-        v = st.session_state.get("upper_base_path", "").strip()
+        v = (st.session_state.get("upper_base_path") or "").strip()
         return v.rstrip("\\/") if v else ""
 
     if st.button("Generate Dashboard Commands", key="generate_dashboard_cli_commands"):
@@ -129,7 +129,7 @@ def render_tab8() -> None:
 
 def generate_dashboard_commands(site_name: str, static_unc: str) -> str:
     """Generate DS import command preview."""
-    upper_base = st.session_state.get("upper_base_path", "").strip().rstrip("\\")
+    upper_base = (st.session_state.get("upper_base_path") or "").strip().rstrip("\\")
     cli_bin_unc   = os.path.join(upper_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
     cli_bin_local = _unc_to_local(cli_bin_unc)
     remote_exe    = os.path.join(cli_bin_local, "sfrxcli.exe")
@@ -154,7 +154,7 @@ def run_dashboard_cli_commands(site_name: str, static_unc: str, log_folder: str,
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file_path = os.path.join(log_folder, f"dashboard_cli_import_log_{timestamp}.log")
 
-        upper_base    = st.session_state.get("upper_base_path", "").strip().rstrip("\\")
+        upper_base    = (st.session_state.get("upper_base_path") or "").strip().rstrip("\\")
         cli_bin_unc   = os.path.join(upper_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
         cli_bin_local = _unc_to_local(cli_bin_unc)
         remote_exe    = os.path.join(cli_bin_local, "sfrxcli.exe")
@@ -202,7 +202,7 @@ def run_dashboard_cli_commands(site_name: str, static_unc: str, log_folder: str,
         if not remote_host:
             raise RuntimeError("Could not determine remote host from upper base path")
 
-        remote_username = st.session_state.get("remote_username", "").strip()
+        remote_username = (st.session_state.get("remote_username") or "").strip()
         remote_password = st.session_state.get("remote_password", "")
         if not remote_username or not remote_password:
             return {"success": False, "output": "", "error": "Remote credentials required in Setup (Tab 1)", "log_file": log_file_path}

@@ -10,7 +10,7 @@ def render_tab5() -> None:
     st.subheader("Import Files")
 
     def _get_lower_base_path() -> str:
-        lower_base = st.session_state.get("lower_base_path", "").strip()
+        lower_base = (st.session_state.get("lower_base_path") or "").strip()
         if lower_base:
             return lower_base.rstrip("\\/")
         return ""
@@ -27,8 +27,8 @@ def render_tab5() -> None:
     # Path of the lower server (derived from Tab 1)
     st.markdown("**Path of the lower server**")
 
-    site_name = st.session_state.get("site_name", "WESTPORT").strip() or "WESTPORT"
-    release_name = st.session_state.get("release_name", "").strip()
+    site_name = (st.session_state.get("site_name") or "WESTPORT").strip()
+    release_name = (st.session_state.get("release_name") or "").strip()
     lower_base = _get_lower_base_path()
     default_lower_path = ""
 
@@ -56,7 +56,7 @@ def render_tab5() -> None:
     st.markdown("**Path of the upper server**")
     
     # Get site name from session state to build default path
-    upper_base = st.session_state.get("upper_base_path", "").strip()
+    upper_base = (st.session_state.get("upper_base_path") or "").strip()
     base_for_env = upper_base if upper_base else "\\\\<upper-server>\\share$"
     default_env_path = f"{base_for_env}\\Applied Materials\\SmartFactoryRx_{site_name}"
 
@@ -70,8 +70,8 @@ def render_tab5() -> None:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("📥 Import!", type="primary", use_container_width=True):
-            lower_path = st.session_state.get("lower_server_path", "").strip().strip('"').strip("'")
-            env_path = st.session_state.get("env_server_path", "").strip().strip('"').strip("'")
+            lower_path = (st.session_state.get("lower_server_path") or "").strip().strip('"').strip("'")
+            env_path = (st.session_state.get("env_server_path") or "").strip().strip('"').strip("'")
             
             if not lower_path:
                 st.error("Lower server path is missing. Please update Tab 1 (site, lower base path, release name) or provide a custom lower path here.")
@@ -114,7 +114,7 @@ def render_tab5() -> None:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("🔍 Check for data to backup", use_container_width=True, disabled=not import_done):
-            env_path = st.session_state.get("env_server_path", "").strip().strip('"').strip("'")
+            env_path = (st.session_state.get("env_server_path") or "").strip().strip('"').strip("'")
             migration_path = st.session_state.get("imported_migration_path", "")
             
             if not migration_path:

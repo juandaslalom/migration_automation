@@ -30,7 +30,7 @@ def render_tab7() -> None:
     st.subheader("Portal Dashboard Migration - CLI Import")
 
     site_name = st.session_state.get("site_name", "")
-    upper_base = st.session_state.get("upper_base_path", "").strip()
+    upper_base = (st.session_state.get("upper_base_path") or "").strip()
     base_for_display = upper_base if upper_base else r"\\<upper-server>\e$"
 
     if site_name:
@@ -55,7 +55,7 @@ def render_tab7() -> None:
     )
 
     def _get_base_path() -> str:
-        upper_base_val = st.session_state.get("upper_base_path", "").strip()
+        upper_base_val = (st.session_state.get("upper_base_path") or "").strip()
         return upper_base_val.rstrip("\\/") if upper_base_val else ""
 
     if st.button("Generate Commands", key="generate_cli_import_commands"):
@@ -148,7 +148,7 @@ def generate_cli_import_commands(site_name: str, release_name: str, migration_fo
     else:
         equipments = [l.strip() for l in equipments_text.splitlines() if l.strip()]
 
-    upper_base = st.session_state.get("upper_base_path", "").strip().rstrip("\\")
+    upper_base = (st.session_state.get("upper_base_path") or "").strip().rstrip("\\")
     cli_bin_unc = os.path.join(upper_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")
     cli_bin_local = _unc_to_local(cli_bin_unc)
     remote_exe = os.path.join(cli_bin_local, "sfrxcli.exe")
@@ -184,10 +184,10 @@ def run_cli_import_commands(site_name: str, release_name: str, migration_folder_
         else:
             equipments = [l.strip() for l in equipments_text.splitlines() if l.strip()]
 
-        upper_base = st.session_state.get("upper_base_path", "").strip().rstrip("\\")
+        upper_base = (st.session_state.get("upper_base_path") or "").strip().rstrip("\\")
         migration_local = _unc_to_local(migration_folder_path)
         remote_host = _host_from_unc(upper_base)
-        remote_username = st.session_state.get("remote_username", "").strip()
+        remote_username = (st.session_state.get("remote_username") or "").strip()
         remote_password = st.session_state.get("remote_password", "")
 
         cli_bin_unc = os.path.join(upper_base, "Applied Materials", f"SmartFactoryRx_{site_name}", "CLI", "bin")

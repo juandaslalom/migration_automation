@@ -34,8 +34,8 @@ def render_tab10() -> None:
         "This will execute the restart script **remotely** on the upper server via scheduled task."
     )
 
-    site_name = st.session_state.get("site_name", "").strip()
-    upper_base = st.session_state.get("upper_base_path", "").strip()
+    site_name = (st.session_state.get("site_name") or "").strip()
+    upper_base = (st.session_state.get("upper_base_path") or "").strip()
 
     if not site_name:
         st.warning("Please set the site name in Setup Steps (Tab 1) before running the restart script.")

@@ -28,8 +28,8 @@ def render_tab6() -> None:
     test_mode = st.checkbox("🧪 Test Mode (simulate without real services)", value=False, key="service_test_mode")
 
     site_name = st.session_state.get("site_name", "")
-    upper_base = st.session_state.get("upper_base_path", "").strip()
-    remote_username = st.session_state.get("remote_username", "").strip()
+    upper_base = (st.session_state.get("upper_base_path") or "").strip()
+    remote_username = (st.session_state.get("remote_username") or "").strip()
     remote_password = st.session_state.get("remote_password", "")
 
     # Derive upper hostname from UNC base path (e.g. \\WA01928Q\e$)
