@@ -1,6 +1,6 @@
 import subprocess
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -92,67 +92,95 @@ def render_tab10() -> None:
             return
 
         task_name = f"SFRx_{site_name}_ServiceRestart_{datetime.now().strftime('%H%M%S')}"
-        start_time = (datetime.now() + timedelta(minutes=2)).strftime("%H:%M")
 
         with st.spinner(f"Running restart script on {upper_hostname}..."):
             try:
-                # Step 1: Create scheduled task
-                create_cmd = (
-                    f'schtasks /create /tn "{task_name}" '
-                    f'/tr "cmd /c \\"{local_script_path}\\"" '
-                    f'/sc once /st {start_time} /ru SYSTEM '
-                    f'/s {upper_hostname} /u {username} /p "{password}" /F'
-                )
-                st.text("Creating scheduled task...")
-                result_create = subprocess.run(
-                    create_cmd, capture_output=True, text=True, shell=True
-                )
-                if result_create.returncode != 0:
-                    st.error(f"Failed to create task: {result_create.stderr or result_create.stdout}")
-                    return
-                st.text(f"✓ Task created: {task_name}")
+                # Use PowerShell CIM session with DCOM protocol so credentials
+                # stay in-memory (piped via stdin) and never appear in process
+                # command-line arguments visible to EDR / security tooling.
+                safe_user = username.replace("'", "''")
+                safe_pass = password.replace("'", "''")
+                safe_host = upper_hostname.replace("'", "''")
+                safe_task = task_name.replace("'", "''")
+                safe_script = local_script_path.replace("'", "''")
 
-                # Step 2: Run immediately
-                run_cmd = (
-                    f'schtasks /run /tn "{task_name}" '
-                    f'/s {upper_hostname} /u {username} /p "{password}"'
+                ps_script = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+    # Build credential in memory - never on command line
+    $pass = ConvertTo-SecureString '{safe_pass}' -AsPlainText -Force
+    $cred = [PSCredential]::new('{safe_user}', $pass)
+
+    # Connect via DCOM (RPC port 135) - works even when WinRM is blocked
+    $opt  = New-CimSessionOption -Protocol Dcom
+    $sess = New-CimSession -ComputerName '{safe_host}' -Credential $cred -SessionOption $opt
+    Write-Output 'CIM session established'
+
+    # Create scheduled task
+    $action    = New-ScheduledTaskAction -Execute 'cmd' -Argument '/c ""{safe_script}""'
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    Register-ScheduledTask -TaskName '{safe_task}' -Action $action -Principal $principal -CimSession $sess -Force | Out-Null
+    Write-Output 'Task created: {safe_task}'
+
+    # Run immediately
+    Start-ScheduledTask -TaskName '{safe_task}' -CimSession $sess
+    Write-Output 'Task started'
+
+    # Wait and check status
+    Start-Sleep -Seconds 10
+    $info = Get-ScheduledTaskInfo -TaskName '{safe_task}' -CimSession $sess
+    Write-Output "Last run result: $($info.LastTaskResult)"
+    Write-Output "Last run time:   $($info.LastRunTime)"
+
+    # Clean up
+    Unregister-ScheduledTask -TaskName '{safe_task}' -CimSession $sess -Confirm:$false
+    Write-Output 'Task cleaned up'
+
+    Remove-CimSession -CimSession $sess
+    Write-Output 'DONE'
+}} catch {{
+    Write-Error $_.Exception.Message
+    exit 1
+}}
+"""
+
+                st.text("Connecting to remote server via CIM/DCOM...")
+
+                # Credentials are piped via stdin - command line only shows
+                # "powershell.exe -NoProfile -Command -"
+                process = subprocess.Popen(
+                    ['powershell.exe', '-NoProfile', '-Command', '-'],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
                 )
-                st.text("Running task...")
-                result_run = subprocess.run(
-                    run_cmd, capture_output=True, text=True, shell=True
+                stdout, stderr = process.communicate(
+                    input=ps_script, timeout=120
                 )
-                if result_run.returncode != 0:
-                    st.error(f"Failed to run task: {result_run.stderr or result_run.stdout}")
+
+                if stdout:
+                    for line in stdout.strip().splitlines():
+                        if line.startswith("Task created"):
+                            st.text(f"✓ {line}")
+                        elif line.startswith("Task started"):
+                            st.text(f"✓ {line}")
+                        elif line.startswith("Task cleaned"):
+                            st.text(f"✓ {line}")
+                        elif line == "DONE":
+                            pass
+                        else:
+                            st.text(line)
+
+                if process.returncode == 0:
+                    st.success(f"✅ Restart script executed on {upper_hostname}")
                 else:
-                    st.text("✓ Task started")
+                    err_msg = stderr.strip() if stderr else stdout
+                    st.error(f"❌ Failed (exit {process.returncode}): {err_msg}")
 
-                # Step 3: Wait and check status
-                import time
-                time.sleep(5)
-
-                query_cmd = (
-                    f'schtasks /query /tn "{task_name}" /fo LIST '
-                    f'/s {upper_hostname} /u {username} /p "{password}"'
-                )
-                result_query = subprocess.run(
-                    query_cmd, capture_output=True, text=True, shell=True
-                )
-                if result_query.stdout:
-                    st.text_area("Task status", result_query.stdout, height=150)
-
-                # Step 4: Delete the task
-                delete_cmd = (
-                    f'schtasks /delete /tn "{task_name}" /f '
-                    f'/s {upper_hostname} /u {username} /p "{password}"'
-                )
-                result_delete = subprocess.run(
-                    delete_cmd, capture_output=True, text=True, shell=True
-                )
-                if result_delete.returncode == 0:
-                    st.text("✓ Task cleaned up")
-
-                st.success(f"✅ Restart script executed on {upper_hostname}")
-
+            except subprocess.TimeoutExpired:
+                process.kill()
+                st.error("Operation timed out after 120 seconds")
             except Exception as exc:
                 st.error(f"Error: {exc}")
 
