@@ -6,6 +6,16 @@ Param(
 # Stop on errors
 $ErrorActionPreference = "Stop"
 
+# Kill any existing Streamlit/Python processes
+Write-Host "[*] Stopping existing Streamlit processes..."
+Get-Process python -ErrorAction SilentlyContinue | Where-Object {
+    try { $_.CommandLine -like '*streamlit*' } catch { $false }
+} | ForEach-Object {
+    Write-Host "    Killing PID $($_.Id)..."
+    Stop-Process -Id $_.Id -Force
+}
+Start-Sleep -Seconds 2
+
 Write-Host "[*] Creating virtual environment (./venv) if missing..."
 if (-not (Test-Path -Path "venv")) {
     & $PythonExe -m venv venv
