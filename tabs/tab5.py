@@ -330,7 +330,33 @@ def render_tab5() -> None:
                         except Exception as e:
                             errors.append(f"{original_path}: {str(e)}")
                     
-                    if not errors:
+                    # --- Additional step: move backup folders into the migration folder ---
+                    backup_results = st.session_state.get("backup_results", [])
+                    backup_moved = []
+                    backup_move_errors = []
+
+                    if backup_results and migration_path:
+                        backups_dest = os.path.join(migration_path, "backups")
+                        os.makedirs(backups_dest, exist_ok=True)
+
+                        for entry in backup_results:
+                            try:
+                                # entry format: "rel_path → /full/backup/path"
+                                backup_full_path = entry.split(" → ")[-1].strip()
+                                if not os.path.exists(backup_full_path):
+                                    backup_move_errors.append(f"Not found: {backup_full_path}")
+                                    continue
+
+                                folder_name = os.path.basename(backup_full_path)
+                                dest = os.path.join(backups_dest, folder_name)
+
+                                st.toast(f"Moving backup {folder_name}...", icon="🗄️")
+                                shutil.move(backup_full_path, dest)
+                                backup_moved.append(f"{backup_full_path} → {dest}")
+                            except Exception as e:
+                                backup_move_errors.append(f"{entry}: {str(e)}")
+
+                    if not errors and not backup_move_errors:
                         st.success("✅ Transfer completed successfully!")
                     else:
                         st.warning("⚠️ Transfer completed with some errors")
@@ -343,9 +369,14 @@ def render_tab5() -> None:
                         st.markdown("**Directories transferred:**")
                         st.code("\n".join(transferred), language="text")
 
-                    if errors:
+                    if backup_moved:
+                        st.markdown("**Backups moved to migration folder:**")
+                        st.code("\n".join(backup_moved), language="text")
+
+                    all_errors = errors + backup_move_errors
+                    if all_errors:
                         st.markdown("**Errors:**")
-                        st.code("\n".join(errors), language="text")
+                        st.code("\n".join(all_errors), language="text")
                         
                 except Exception as e:
                     st.error(f"Error during transfer: {str(e)}")
